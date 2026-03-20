@@ -7,8 +7,7 @@ const SUPABASE_URL = "https://lmuhbktyjslllbecrjzj.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA";
 
-
-const supabase =
+const supabaseClient =
   window.supabase &&
   SUPABASE_URL &&
   SUPABASE_ANON_KEY
@@ -184,7 +183,7 @@ function getFilteredPosts(posts) {
 }
 
 function isSupabaseReady() {
-  return Boolean(supabase);
+  return Boolean(supabaseClient);
 }
 
 async function fetchPosts() {
@@ -195,7 +194,7 @@ async function fetchPosts() {
   }
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("posts")
       .select("*")
       .order("date", { ascending: false });
@@ -222,7 +221,7 @@ async function insertPost(post) {
   }
 
   try {
-    const { error } = await supabase.from("posts").insert([post]);
+    const { error } = await supabaseClient.from("posts").insert([post]);
 
     if (error) {
       console.log(error);
@@ -243,7 +242,7 @@ async function deletePost(postId, currentUser) {
   }
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from("posts")
       .delete()
       .eq("id", postId)
@@ -268,7 +267,7 @@ async function updatePostsAuthorName(oldName, newName) {
   }
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from("posts")
       .update({ author: newName })
       .eq("author", oldName);
