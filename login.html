@@ -23,18 +23,20 @@
         <p class="section-heading__eyebrow">LOGIN</p>
         <h1 class="auth-page__title">ログイン</h1>
         <p class="auth-page__text">
-          登録した表示名とパスワードを入れて、ブログに入ります。
+          登録したメールアドレスとパスワードを入れて、ブログに入ります。
         </p>
 
-       <label class="form__field">
-  <span>メールアドレス</span>
-  <input
-    type="email"
-    name="loginEmail"
-    placeholder="登録したメールアドレスを入力"
-    required
-  />
-</label>
+        <form id="login-form" class="form">
+          <label class="form__field">
+            <span>メールアドレス</span>
+            <input
+              type="email"
+              name="loginEmail"
+              placeholder="登録したメールアドレスを入力"
+              required
+            />
+          </label>
+
           <label class="form__field">
             <span>パスワード</span>
             <div class="password-field">
@@ -63,7 +65,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="script.js"></script>
-
+    <script src="script.js"></script>
   </body>
 </html>
