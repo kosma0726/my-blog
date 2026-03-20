@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>新規登録 | はじめてブログ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="page-auth">
+    <main class="auth-page">
+      <section class="auth-page__card panel">
+        <nav class="top-nav top-nav--compact">
+          <a href="index.html">ホーム</a>
+          <a href="register.html">新規登録</a>
+          <a href="login.html">ログイン</a>
+        </nav>
+        <p class="section-heading__eyebrow">REGISTER</p>
+        <h1 class="auth-page__title">新規登録</h1>
+        <p class="auth-page__text">
+          表示名、パスワード、必要ならアイコン画像を入れてアカウントを作ります。
+        </p>
+
+        <form id="register-form" class="form">
+          <label class="form__field">
+            <span>ユーザー名</span>
+            <input type="text" name="registerName" placeholder="例：まえだ" required />
+          </label>
+
+          <label class="form__field">
+            <span>パスワード</span>
+            <div class="password-field">
+              <input
+                type="password"
+                name="registerPassword"
+                placeholder="4文字以上で入力"
+                required
+              />
+              <button type="button" class="password-toggle" data-password-toggle>
+                表示
+              </button>
+            </div>
+          </label>
+
+          <label class="form__field">
+            <span>丸いアイコンにしたい画像</span>
+            <input type="file" name="registerAvatar" accept="image/*" />
+          </label>
+
+          <button type="submit" class="button button--primary button--full">
+            新規登録する
+          </button>
+        </form>
+
+        <p id="auth-message" class="message" aria-live="polite"></p>
+        <p class="auth-page__switch">
+          すでにアカウントがある人は <a href="login.html">ログインページ</a> へ
+        </p>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
