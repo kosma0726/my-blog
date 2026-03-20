@@ -163,7 +163,10 @@ function getUserProfile(userName) {
 }
 
 function getFilteredPosts(posts) {
-  const currentUser = getCurrentUser();
+  const { data } = await supabaseClient.auth.getUser();
+const user = data.user;
+
+const author = user?.user_metadata?.display_name || user?.email;
   if (!currentUser) {
     return posts;
   }
@@ -433,8 +436,27 @@ if (registerForm) {
 
     const formData = new FormData(registerForm);
     const name = formData.get("registerName").toString().trim();
+    const email = formData.get("registerEmail").toString().trim();
     const password = formData.get("registerPassword").toString().trim();
-    const avatarFile = formData.get("registerAvatar");
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: name,
+        },
+      },
+    });
+
+    if (error) {
+      if (authMessage) authMessage.textContent = "登録失敗";
+      return;
+    }
+
+    goToPage("index.html");
+  });
+}
 
     if (!name || !password) {
       if (authMessage) {
@@ -517,11 +539,8 @@ if (loginForm) {
 }
 
 if (logoutButton) {
-  logoutButton.addEventListener("click", () => {
-    setCurrentUser("");
-    if (blogForm) {
-      blogForm.reset();
-    }
+  logoutButton.addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
     goToPage("login.html");
   });
 }
