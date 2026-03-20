@@ -582,52 +582,64 @@ if (avatarUpdateInput) {
 if (blogForm) {
   blogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+
     console.log("投稿ボタン押された");
-await refreshCurrentAuthUser();
-console.log(currentAuthUser);
-console.log(getCurrentUserName());
-    await refreshCurrentAuthUser();
-    const currentUserName = getCurrentUserName();
 
-    if (!currentAuthUser || !currentUserName) {
-      if (postMessage) {
-        postMessage.textContent = "記事を書くには、先にログインしてください。";
+    try {
+      console.log("refresh前");
+      await refreshCurrentAuthUser();
+      console.log("refresh後", currentAuthUser);
+
+      const currentUserName = getCurrentUserName();
+      console.log("currentUserName", currentUserName);
+
+      if (!currentAuthUser || !currentUserName) {
+        console.log("ログイン情報なしで停止");
+        if (postMessage) {
+          postMessage.textContent = "記事を書くには、先にログインしてください。";
+        }
+        return;
       }
-      return;
-    }
 
-    const formData = new FormData(blogForm);
-    const newPost = {
-      id: crypto.randomUUID(),
-      author: currentUserName,
-      avatar: getCurrentUserAvatar(),
-      title: formData.get("title")?.toString().trim() || "",
-      summary: formData.get("summary")?.toString().trim() || "",
-      content: formData.get("content")?.toString().trim() || "",
-      date: new Date().toISOString(),
-    };
+      const formData = new FormData(blogForm);
+      const newPost = {
+        id: crypto.randomUUID(),
+        author: currentUserName,
+        avatar: getCurrentUserAvatar(),
+        title: formData.get("title")?.toString().trim() || "",
+        summary: formData.get("summary")?.toString().trim() || "",
+        content: formData.get("content")?.toString().trim() || "",
+        date: new Date().toISOString(),
+      };
 
-    if (!newPost.title || !newPost.summary || !newPost.content) {
-      if (postMessage) {
-        postMessage.textContent = "空欄があるので、全部入力してください。";
+      console.log("newPost", newPost);
+
+      if (!newPost.title || !newPost.summary || !newPost.content) {
+        console.log("空欄で停止");
+        if (postMessage) {
+          postMessage.textContent = "空欄があるので、全部入力してください。";
+        }
+        return;
       }
-      return;
-    }
 
-    const result = await insertPost(newPost);
+      const result = await insertPost(newPost);
+      console.log("insert結果", result);
 
-    if (!result.ok) {
-      if (postMessage) {
-        postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
+      if (!result.ok) {
+        if (postMessage) {
+          postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
+        }
+        return;
       }
-      return;
-    }
 
-    await renderPosts();
-    blogForm.reset();
+      await renderPosts();
+      blogForm.reset();
 
-    if (postMessage) {
-      postMessage.textContent = `${currentUserName} さんの記事を投稿できました。`;
+      if (postMessage) {
+        postMessage.textContent = `${currentUserName} さんの記事を投稿できました。`;
+      }
+    } catch (error) {
+      console.log("submit内エラー", error);
     }
   });
 }
