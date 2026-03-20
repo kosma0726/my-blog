@@ -1,5 +1,3 @@
-const USERS_STORAGE_KEY = "beginner-blog-users";
-const SESSION_STORAGE_KEY = "beginner-blog-current-user";
 const FRIENDS_STORAGE_KEY = "beginner-blog-friends";
 const DEFAULT_FILTER = "all";
 
@@ -34,23 +32,7 @@ const passwordToggleButtons = document.querySelectorAll("[data-password-toggle]"
 
 let currentFilter = DEFAULT_FILTER;
 let cachedPosts = [];
-
-function loadUsers() {
-  const savedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-  if (!savedUsers) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(savedUsers);
-  } catch (error) {
-    return [];
-  }
-}
-
-function saveUsers(users) {
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-}
+let currentAuthUser = null;
 
 function loadFriendMap() {
   const saved = localStorage.getItem(FRIENDS_STORAGE_KEY);
@@ -92,19 +74,6 @@ function renameFriendReferences(oldName, newName) {
   });
 
   saveFriendMap(nextMap);
-}
-
-function getCurrentUser() {
-  return localStorage.getItem(SESSION_STORAGE_KEY);
-}
-
-function setCurrentUser(userName) {
-  if (userName) {
-    localStorage.setItem(SESSION_STORAGE_KEY, userName);
-    return;
-  }
-
-  localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
 function goToPage(page) {
@@ -154,29 +123,59 @@ function fileToDataUrl(file) {
   });
 }
 
-function findUserByName(userName) {
-  return loadUsers().find((user) => user.name === userName);
+function getDisplayNameFromUser(user) {
+  if (!user) {
+    return "";
+  }
+
+  return user.user_metadata?.display_name || user.email || "";
 }
 
-function getUserProfile(userName) {
-  return findUserByName(userName) || { name: userName, avatar: "" };
+function getAvatarFromUser(user) {
+  if (!user) {
+    return "";
+  }
+
+  return user.user_metadata?.avatar_url || "";
+}
+
+function getCurrentUserName() {
+  return getDisplayNameFromUser(currentAuthUser);
+}
+
+function getCurrentUserAvatar() {
+  return getAvatarFromUser(currentAuthUser);
+}
+
+async function refreshCurrentAuthUser() {
+  const { data, error } = await supabaseClient.auth.getUser();
+
+  if (error) {
+    console.log(error);
+    currentAuthUser = null;
+    return null;
+  }
+
+  currentAuthUser = data.user || null;
+  return currentAuthUser;
 }
 
 function getFilteredPosts(posts) {
-  const { data } = await supabaseClient.auth.getUser();
-const user = data.user;
+  const currentUserName = getCurrentUserName();
 
-const author = user?.user_metadata?.display_name || user?.email;
-  if (!currentUser) {
+  if (!currentUserName) {
     return posts;
   }
 
   if (currentFilter === "mine") {
-    return posts.filter((post) => post.author === currentUser);
+    return posts.filter((post) => post.author === currentUserName);
   }
 
   if (currentFilter === "friends") {
-    const allowedAuthors = new Set([currentUser, ...getFriendsForUser(currentUser)]);
+    const allowedAuthors = new Set([
+      currentUserName,
+      ...getFriendsForUser(currentUserName),
+    ]);
     return posts.filter((post) => allowedAuthors.has(post.author));
   }
 
@@ -282,7 +281,7 @@ async function updatePostsAuthorName(oldName, newName) {
 }
 
 function createPostCard(post) {
-  const currentUser = getCurrentUser();
+  const currentUserName = getCurrentUserName();
   const article = document.createElement("article");
   article.className = "post-card";
   article.dataset.postId = post.id;
@@ -290,8 +289,11 @@ function createPostCard(post) {
   const header = document.createElement("div");
   header.className = "post-card__header";
 
-  const profile = getUserProfile(post.author);
-  const avatar = createAvatarElement(profile.name, profile.avatar, "avatar--small");
+  const avatar = createAvatarElement(
+    post.author,
+    post.avatar || "",
+    "avatar--small"
+  );
 
   const headingBox = document.createElement("div");
   headingBox.className = "post-card__heading";
@@ -305,7 +307,7 @@ function createPostCard(post) {
 
   headingBox.append(title, meta);
 
-  if (currentUser && post.author === currentUser) {
+  if (currentUserName && post.author === currentUserName) {
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "post-card__delete";
@@ -361,8 +363,8 @@ function renderFriendList() {
     return;
   }
 
-  const currentUser = getCurrentUser();
-  const friends = currentUser ? getFriendsForUser(currentUser) : [];
+  const currentUserName = getCurrentUserName();
+  const friends = currentUserName ? getFriendsForUser(currentUserName) : [];
   friendList.innerHTML = "";
 
   if (!friends.length) {
@@ -395,7 +397,7 @@ function updateAuthUi() {
     return;
   }
 
-  const isLoggedIn = Boolean(getCurrentUser());
+  const isLoggedIn = Boolean(currentAuthUser);
   composerSection.classList.toggle("composer--disabled", !isLoggedIn);
 
   Array.from(blogForm.elements).forEach((element) => {
@@ -418,16 +420,21 @@ function updateAuthUi() {
   renderFriendList();
 }
 
-function requireLoginForProtectedPages() {
+async function requireLoginForProtectedPages() {
   const protectedPages = ["index.html", "change-name.html", "change-password.html"];
+  const isLoggedIn = Boolean(currentAuthUser);
 
-  if (protectedPages.includes(currentPage) && !getCurrentUser()) {
+  if (protectedPages.includes(currentPage) && !isLoggedIn) {
     goToPage("login.html");
+    return false;
   }
 
-  if ((currentPage === "login.html" || currentPage === "register.html") && getCurrentUser()) {
+  if ((currentPage === "login.html" || currentPage === "register.html") && isLoggedIn) {
     goToPage("index.html");
+    return false;
   }
+
+  return true;
 }
 
 if (registerForm) {
@@ -435,9 +442,26 @@ if (registerForm) {
     event.preventDefault();
 
     const formData = new FormData(registerForm);
-    const name = formData.get("registerName").toString().trim();
-    const email = formData.get("registerEmail").toString().trim();
-    const password = formData.get("registerPassword").toString().trim();
+    const name = formData.get("registerName")?.toString().trim() || "";
+    const email = formData.get("registerEmail")?.toString().trim() || "";
+    const password = formData.get("registerPassword")?.toString().trim() || "";
+    const avatarFile = formData.get("registerAvatar");
+
+    if (!name || !email || !password) {
+      if (authMessage) {
+        authMessage.textContent = "名前・メール・パスワードを入力してください。";
+      }
+      return;
+    }
+
+    if (password.length < 6) {
+      if (authMessage) {
+        authMessage.textContent = "パスワードは6文字以上にしてください。";
+      }
+      return;
+    }
+
+    const avatar = avatarFile instanceof File ? await fileToDataUrl(avatarFile) : "";
 
     const { data, error } = await supabaseClient.auth.signUp({
       email,
@@ -445,52 +469,29 @@ if (registerForm) {
       options: {
         data: {
           display_name: name,
+          avatar_url: avatar,
         },
       },
     });
 
     if (error) {
-      if (authMessage) authMessage.textContent = "登録失敗";
-      return;
-    }
-
-    goToPage("index.html");
-  });
-}
-
-    if (!name || !password) {
+      console.log(error);
       if (authMessage) {
-        authMessage.textContent = "名前とパスワードを両方入力してください。";
+        authMessage.textContent = "登録に失敗しました。";
       }
       return;
     }
 
-    if (password.length < 4) {
-      if (authMessage) {
-        authMessage.textContent = "パスワードは4文字以上にしてください。";
-      }
-      return;
-    }
-
-    if (findUserByName(name)) {
-      if (authMessage) {
-        authMessage.textContent = "その表示名はすでに使われています。別の名前にしてください。";
-      }
-      return;
-    }
-
-    const avatar = avatarFile instanceof File ? await fileToDataUrl(avatarFile) : "";
-    const users = loadUsers();
-    users.push({ name, password, avatar });
-    saveUsers(users);
-    setCurrentUser(name);
     registerForm.reset();
 
     if (authMessage) {
-      authMessage.textContent = `新規登録できました。${name} さんでログイン中です。`;
+      authMessage.textContent = "登録できました。";
     }
 
-    goToPage("index.html");
+    if (data.user) {
+      await refreshCurrentAuthUser();
+      goToPage("index.html");
+    }
   });
 }
 
@@ -499,8 +500,8 @@ if (loginForm) {
     event.preventDefault();
 
     const formData = new FormData(loginForm);
-    const email = formData.get("loginEmail").toString().trim();
-    const password = formData.get("loginPassword").toString().trim();
+    const email = formData.get("loginEmail")?.toString().trim() || "";
+    const password = formData.get("loginPassword")?.toString().trim() || "";
 
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email,
@@ -522,47 +523,52 @@ if (loginForm) {
     }
 
     if (data.user) {
+      await refreshCurrentAuthUser();
       goToPage("index.html");
     }
   });
 }
 
-    setCurrentUser(name);
-    loginForm.reset();
-
-    if (authMessage) {
-      authMessage.textContent = `${name} さん、ログインできました。`;
-    }
-
-    goToPage("index.html");
-  });
-}
-
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
-    await supabaseClient.auth.signOut();
+    const { error } = await supabaseClient.auth.signOut();
+
+    if (error) {
+      console.log(error);
+      return;
+    }
+
+    currentAuthUser = null;
     goToPage("login.html");
   });
 }
 
 if (avatarUpdateInput) {
   avatarUpdateInput.addEventListener("change", async (event) => {
-    const currentUser = getCurrentUser();
     const file = event.target.files && event.target.files[0];
 
-    if (!currentUser || !file) {
+    if (!currentAuthUser || !file) {
       return;
     }
 
-    const users = loadUsers();
-    const user = users.find((item) => item.name === currentUser);
+    const avatar = await fileToDataUrl(file);
 
-    if (!user) {
+    const { error } = await supabaseClient.auth.updateUser({
+      data: {
+        display_name: getCurrentUserName(),
+        avatar_url: avatar,
+      },
+    });
+
+    if (error) {
+      console.log(error);
+      if (postMessage) {
+        postMessage.textContent = "アイコン更新に失敗しました。";
+      }
       return;
     }
 
-    user.avatar = await fileToDataUrl(file);
-    saveUsers(users);
+    await refreshCurrentAuthUser();
 
     if (postMessage) {
       postMessage.textContent = "アイコンを更新しました。";
@@ -577,9 +583,10 @@ if (blogForm) {
   blogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const currentUser = getCurrentUser();
+    await refreshCurrentAuthUser();
+    const currentUserName = getCurrentUserName();
 
-    if (!currentUser) {
+    if (!currentAuthUser || !currentUserName) {
       if (postMessage) {
         postMessage.textContent = "記事を書くには、先にログインしてください。";
       }
@@ -588,11 +595,12 @@ if (blogForm) {
 
     const formData = new FormData(blogForm);
     const newPost = {
-      id: String(Date.now()),
-      author: currentUser,
-      title: formData.get("title").toString().trim(),
-      summary: formData.get("summary").toString().trim(),
-      content: formData.get("content").toString().trim(),
+      id: crypto.randomUUID(),
+      author: currentUserName,
+      avatar: getCurrentUserAvatar(),
+      title: formData.get("title")?.toString().trim() || "",
+      summary: formData.get("summary")?.toString().trim() || "",
+      content: formData.get("content")?.toString().trim() || "",
       date: new Date().toISOString(),
     };
 
@@ -616,7 +624,7 @@ if (blogForm) {
     blogForm.reset();
 
     if (postMessage) {
-      postMessage.textContent = `${currentUser} さんの記事を投稿できました。`;
+      postMessage.textContent = `${currentUserName} さんの記事を投稿できました。`;
     }
   });
 }
@@ -635,10 +643,11 @@ if (postList) {
       return;
     }
 
-    const currentUser = getCurrentUser();
+    await refreshCurrentAuthUser();
+    const currentUserName = getCurrentUserName();
     const post = cachedPosts.find((item) => item.id === postId);
 
-    if (!currentUser || !post || post.author !== currentUser) {
+    if (!currentUserName || !post || post.author !== currentUserName) {
       return;
     }
 
@@ -648,7 +657,7 @@ if (postList) {
       return;
     }
 
-    const result = await deletePost(postId, currentUser);
+    const result = await deletePost(postId, currentUserName);
 
     if (!result.ok) {
       if (postMessage) {
@@ -669,15 +678,15 @@ if (friendForm) {
   friendForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    const currentUser = getCurrentUser();
+    const currentUserName = getCurrentUserName();
 
-    if (!currentUser) {
+    if (!currentUserName) {
       goToPage("login.html");
       return;
     }
 
     const formData = new FormData(friendForm);
-    const friendName = formData.get("friendName").toString().trim();
+    const friendName = formData.get("friendName")?.toString().trim() || "";
 
     if (!friendName) {
       if (friendMessage) {
@@ -686,21 +695,14 @@ if (friendForm) {
       return;
     }
 
-    if (friendName === currentUser) {
+    if (friendName === currentUserName) {
       if (friendMessage) {
         friendMessage.textContent = "自分自身は追加しなくて大丈夫です。";
       }
       return;
     }
 
-    if (!findUserByName(friendName)) {
-      if (friendMessage) {
-        friendMessage.textContent = "そのユーザー名は存在しません。";
-      }
-      return;
-    }
-
-    const friends = getFriendsForUser(currentUser);
+    const friends = getFriendsForUser(currentUserName);
 
     if (friends.includes(friendName)) {
       if (friendMessage) {
@@ -709,7 +711,7 @@ if (friendForm) {
       return;
     }
 
-    setFriendsForUser(currentUser, [...friends, friendName]);
+    setFriendsForUser(currentUserName, [...friends, friendName]);
     friendForm.reset();
 
     if (friendMessage) {
@@ -730,14 +732,14 @@ if (friendList) {
     }
 
     const friendName = target.dataset.friendName;
-    const currentUser = getCurrentUser();
+    const currentUserName = getCurrentUserName();
 
-    if (!friendName || !currentUser) {
+    if (!friendName || !currentUserName) {
       return;
     }
 
-    const nextFriends = getFriendsForUser(currentUser).filter((name) => name !== friendName);
-    setFriendsForUser(currentUser, nextFriends);
+    const nextFriends = getFriendsForUser(currentUserName).filter((name) => name !== friendName);
+    setFriendsForUser(currentUserName, nextFriends);
 
     if (friendMessage) {
       friendMessage.textContent = `${friendName} さんをフレンド一覧から外しました。`;
@@ -749,10 +751,10 @@ if (friendList) {
 }
 
 filterTabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
+  tab.addEventListener("click", async () => {
     currentFilter = tab.dataset.filter || DEFAULT_FILTER;
     renderFilterTabs();
-    renderPosts();
+    await renderPosts();
   });
 });
 
@@ -772,20 +774,19 @@ passwordToggleButtons.forEach((button) => {
 });
 
 if (changeNameForm) {
-  const currentUser = getCurrentUser();
-
   if (currentNameInput) {
-    currentNameInput.value = currentUser || "";
+    currentNameInput.value = getCurrentUserName() || "";
   }
 
   changeNameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const currentName = getCurrentUser();
+    await refreshCurrentAuthUser();
+    const currentName = getCurrentUserName();
     const formData = new FormData(changeNameForm);
-    const newUserName = formData.get("newUserName").toString().trim();
+    const newUserName = formData.get("newUserName")?.toString().trim() || "";
 
-    if (!currentName) {
+    if (!currentAuthUser || !currentName) {
       goToPage("login.html");
       return;
     }
@@ -804,26 +805,24 @@ if (changeNameForm) {
       return;
     }
 
-    if (findUserByName(newUserName)) {
+    const { error } = await supabaseClient.auth.updateUser({
+      data: {
+        display_name: newUserName,
+        avatar_url: getCurrentUserAvatar(),
+      },
+    });
+
+    if (error) {
+      console.log(error);
       if (accountMessage) {
-        accountMessage.textContent = "そのユーザー名はすでに使われています。";
+        accountMessage.textContent = "ユーザー名の変更に失敗しました。";
       }
       return;
     }
 
-    const users = loadUsers();
-    const user = users.find((item) => item.name === currentName);
-
-    if (!user) {
-      goToPage("login.html");
-      return;
-    }
-
-    user.name = newUserName;
-    saveUsers(users);
     await updatePostsAuthorName(currentName, newUserName);
     renameFriendReferences(currentName, newUserName);
-    setCurrentUser(newUserName);
+    await refreshCurrentAuthUser();
 
     if (currentNameInput) {
       currentNameInput.value = newUserName;
@@ -832,42 +831,44 @@ if (changeNameForm) {
     if (accountMessage) {
       accountMessage.textContent = `ユーザー名を ${newUserName} に変更しました。`;
     }
+
+    await renderPosts();
   });
 }
 
 if (changePasswordForm) {
-  changePasswordForm.addEventListener("submit", (event) => {
+  changePasswordForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const currentUser = getCurrentUser();
-    const formData = new FormData(changePasswordForm);
-    const currentPassword = formData.get("currentPassword").toString().trim();
-    const newPassword = formData.get("newPassword").toString().trim();
+    await refreshCurrentAuthUser();
 
-    if (!currentUser) {
+    if (!currentAuthUser) {
       goToPage("login.html");
       return;
     }
 
-    const users = loadUsers();
-    const user = users.find((item) => item.name === currentUser);
+    const formData = new FormData(changePasswordForm);
+    const newPassword = formData.get("newPassword")?.toString().trim() || "";
 
-    if (!user || user.password !== currentPassword) {
+    if (newPassword.length < 6) {
       if (accountMessage) {
-        accountMessage.textContent = "今のパスワードが違います。";
+        accountMessage.textContent = "新しいパスワードは6文字以上にしてください。";
       }
       return;
     }
 
-    if (newPassword.length < 4) {
+    const { error } = await supabaseClient.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      console.log(error);
       if (accountMessage) {
-        accountMessage.textContent = "新しいパスワードは4文字以上にしてください。";
+        accountMessage.textContent = "パスワード変更に失敗しました。";
       }
       return;
     }
 
-    user.password = newPassword;
-    saveUsers(users);
     changePasswordForm.reset();
 
     if (accountMessage) {
@@ -876,6 +877,28 @@ if (changePasswordForm) {
   });
 }
 
-requireLoginForProtectedPages();
-renderPosts();
-updateAuthUi();
+supabaseClient.auth.onAuthStateChange(async () => {
+  await refreshCurrentAuthUser();
+
+  if (currentNameInput) {
+    currentNameInput.value = getCurrentUserName() || "";
+  }
+
+  updateAuthUi();
+});
+
+(async () => {
+  await refreshCurrentAuthUser();
+  const canStay = await requireLoginForProtectedPages();
+
+  if (!canStay) {
+    return;
+  }
+
+  if (currentNameInput) {
+    currentNameInput.value = getCurrentUserName() || "";
+  }
+
+  updateAuthUi();
+  await renderPosts();
+})();
