@@ -346,11 +346,11 @@ h3 {
   margin-top: 22px;
   padding: 16px 18px;
   border-radius: 18px;
-  background: linear-gradient(135deg, rgba(17, 109, 255, 0.12), rgba(255, 107, 74, 0.14));
   background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(255, 71, 126, 0.14));
   color: var(--brand-strong);
   font-weight: 700;
 }
+
 
 .auth__grid {
   margin-top: 20px;
