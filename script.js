@@ -473,20 +473,37 @@ if (registerForm) {
 }
 
 if (loginForm) {
-  loginForm.addEventListener("submit", (event) => {
+  loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const formData = new FormData(loginForm);
-    const name = formData.get("loginName").toString().trim();
+    const email = formData.get("loginEmail").toString().trim();
     const password = formData.get("loginPassword").toString().trim();
-    const user = findUserByName(name);
 
-    if (!user || user.password !== password) {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.log(error);
       if (authMessage) {
-        authMessage.textContent = "表示名かパスワードが違います。";
+        authMessage.textContent = "メールアドレスかパスワードが違います。";
       }
       return;
     }
+
+    loginForm.reset();
+
+    if (authMessage) {
+      authMessage.textContent = "ログインできました。";
+    }
+
+    if (data.user) {
+      goToPage("index.html");
+    }
+  });
+}
 
     setCurrentUser(name);
     loginForm.reset();
