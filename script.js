@@ -842,6 +842,6 @@ if (changePasswordForm) {
   });
 }
 
+requireLoginForProtectedPages();
 renderPosts();
 updateAuthUi();
-requireLoginForProtectedPages();
