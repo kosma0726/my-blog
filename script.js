@@ -7,12 +7,10 @@ const SUPABASE_URL = "https://lmuhbktyjslllbecrjzj.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA";
 
-const supabaseClient =
-  window.supabase &&
-  SUPABASE_URL &&
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
   SUPABASE_ANON_KEY
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    : null;
+);
 
 const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
