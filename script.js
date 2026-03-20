@@ -531,17 +531,21 @@ if (loginForm) {
 
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
-    const { error } = await supabaseClient.auth.signOut();
+    try {
+      const { error } = await supabaseClient.auth.signOut();
 
-    if (error) {
+      if (error) {
+        console.log(error);
+      }
+    } catch (error) {
       console.log(error);
-      return;
+    } finally {
+      currentAuthUser = null;
+      goToPage("login.html");
     }
-
-    currentAuthUser = null;
-    goToPage("login.html");
   });
 }
+
 
 if (avatarUpdateInput) {
   avatarUpdateInput.addEventListener("change", async (event) => {
