@@ -892,8 +892,8 @@ if (changePasswordForm) {
   });
 }
 
-supabaseClient.auth.onAuthStateChange(async () => {
-  await refreshCurrentAuthUser();
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+  currentAuthUser = session?.user || null;
 
   if (currentNameInput) {
     currentNameInput.value = getCurrentUserName() || "";
