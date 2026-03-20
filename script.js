@@ -1,29 +1,19 @@
 const USERS_STORAGE_KEY = "beginner-blog-users";
-const POSTS_STORAGE_KEY = "beginner-blog-posts";
 const SESSION_STORAGE_KEY = "beginner-blog-current-user";
 const FRIENDS_STORAGE_KEY = "beginner-blog-friends";
 const DEFAULT_FILTER = "all";
 
-const samplePosts = [
-  {
-    id: "sample-1",
-    author: "運営",
-    title: "ブログへようこそ",
-    summary: "最初から入っている見本の記事です。",
-    content:
-      "このブログは、超初心者でも使いやすいように作ってあります。\n\n先にアカウント登録してログインすると、自分の記事を追加できます。",
-    date: "2026-03-19T09:00:00.000Z",
-  },
-  {
-    id: "sample-2",
-    author: "運営",
-    title: "ログインすると投稿できます",
-    summary: "各ユーザーごとに名前が付いて表示されます。",
-    content:
-      "このサイトは練習用なので、登録情報はこのブラウザの中だけに保存されます。\n\n本格的な公開サイトにするにはサーバーが必要です。",
-    date: "2026-03-19T10:00:00.000Z",
-  },
-];
+const SUPABASE_URL = "https://lmuhbktyjslllbecrjzj.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA";
+
+
+const supabase =
+  window.supabase &&
+  SUPABASE_URL &&
+  SUPABASE_ANON_KEY
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
 const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
@@ -46,6 +36,7 @@ const currentPage = window.location.pathname.split("/").pop() || "index.html";
 const passwordToggleButtons = document.querySelectorAll("[data-password-toggle]");
 
 let currentFilter = DEFAULT_FILTER;
+let cachedPosts = [];
 
 function loadUsers() {
   const savedUsers = localStorage.getItem(USERS_STORAGE_KEY);
@@ -62,33 +53,6 @@ function loadUsers() {
 
 function saveUsers(users) {
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-}
-
-function loadPosts() {
-  const savedPosts = localStorage.getItem(POSTS_STORAGE_KEY);
-
-  if (!savedPosts) {
-    localStorage.setItem(POSTS_STORAGE_KEY, JSON.stringify(samplePosts));
-    return samplePosts;
-  }
-
-  try {
-    return JSON.parse(savedPosts);
-  } catch (error) {
-    localStorage.setItem(POSTS_STORAGE_KEY, JSON.stringify(samplePosts));
-    return samplePosts;
-  }
-}
-
-function savePosts(posts) {
-  localStorage.setItem(POSTS_STORAGE_KEY, JSON.stringify(posts));
-}
-
-function updatePostsAuthorName(oldName, newName) {
-  const posts = loadPosts().map((post) =>
-    post.author === oldName ? { ...post, author: newName } : post
-  );
-  savePosts(posts);
 }
 
 function loadFriendMap() {
@@ -219,6 +183,104 @@ function getFilteredPosts(posts) {
   return posts;
 }
 
+function isSupabaseReady() {
+  return Boolean(supabase);
+}
+
+async function fetchPosts() {
+  if (!isSupabaseReady()) {
+    console.log(new Error("Supabaseの接続情報が未設定です。"));
+    cachedPosts = [];
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("date", { ascending: false });
+
+    if (error) {
+      console.log(error);
+      cachedPosts = [];
+      return [];
+    }
+
+    cachedPosts = Array.isArray(data) ? data : [];
+    return cachedPosts;
+  } catch (error) {
+    console.log(error);
+    cachedPosts = [];
+    return [];
+  }
+}
+
+async function insertPost(post) {
+  if (!isSupabaseReady()) {
+    console.log(new Error("Supabaseの接続情報が未設定のため、投稿できません。"));
+    return { ok: false };
+  }
+
+  try {
+    const { error } = await supabase.from("posts").insert([post]);
+
+    if (error) {
+      console.log(error);
+      return { ok: false };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    console.log(error);
+    return { ok: false };
+  }
+}
+
+async function deletePost(postId, currentUser) {
+  if (!isSupabaseReady()) {
+    console.log(new Error("Supabaseの接続情報が未設定のため、削除できません。"));
+    return { ok: false };
+  }
+
+  try {
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId)
+      .eq("author", currentUser);
+
+    if (error) {
+      console.log(error);
+      return { ok: false };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    console.log(error);
+    return { ok: false };
+  }
+}
+
+async function updatePostsAuthorName(oldName, newName) {
+  if (!isSupabaseReady()) {
+    console.log(new Error("Supabaseの接続情報が未設定のため、投稿者名を更新できません。"));
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("posts")
+      .update({ author: newName })
+      .eq("author", oldName);
+
+    if (error) {
+      console.log(error);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
+
 function createPostCard(post) {
   const currentUser = getCurrentUser();
   const article = document.createElement("article");
@@ -233,6 +295,7 @@ function createPostCard(post) {
 
   const headingBox = document.createElement("div");
   headingBox.className = "post-card__heading";
+
   const meta = document.createElement("p");
   meta.className = "post-card__meta";
   meta.textContent = `${formatDate(post.date)} | 投稿者: ${post.author}`;
@@ -266,12 +329,12 @@ function createPostCard(post) {
   return article;
 }
 
-function renderPosts() {
+async function renderPosts() {
   if (!postList) {
     return;
   }
 
-  const posts = getFilteredPosts(loadPosts()).slice().reverse();
+  const posts = getFilteredPosts(await fetchPosts());
   postList.innerHTML = "";
 
   if (!posts.length) {
@@ -340,6 +403,7 @@ function updateAuthUi() {
   });
 
   logoutButton.disabled = !isLoggedIn;
+
   if (avatarUpdateInput) {
     avatarUpdateInput.disabled = !isLoggedIn;
   }
@@ -459,6 +523,7 @@ if (avatarUpdateInput) {
 
     const users = loadUsers();
     const user = users.find((item) => item.name === currentUser);
+
     if (!user) {
       return;
     }
@@ -470,16 +535,17 @@ if (avatarUpdateInput) {
       postMessage.textContent = "アイコンを更新しました。";
     }
 
-    renderPosts();
+    await renderPosts();
     avatarUpdateInput.value = "";
   });
 }
 
 if (blogForm) {
-  blogForm.addEventListener("submit", (event) => {
+  blogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const currentUser = getCurrentUser();
+
     if (!currentUser) {
       if (postMessage) {
         postMessage.textContent = "記事を書くには、先にログインしてください。";
@@ -504,10 +570,16 @@ if (blogForm) {
       return;
     }
 
-    const posts = loadPosts();
-    posts.push(newPost);
-    savePosts(posts);
-    renderPosts();
+    const result = await insertPost(newPost);
+
+    if (!result.ok) {
+      if (postMessage) {
+        postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
+      }
+      return;
+    }
+
+    await renderPosts();
     blogForm.reset();
 
     if (postMessage) {
@@ -517,33 +589,42 @@ if (blogForm) {
 }
 
 if (postList) {
-  postList.addEventListener("click", (event) => {
+  postList.addEventListener("click", async (event) => {
     const target = event.target;
+
     if (!(target instanceof HTMLButtonElement)) {
       return;
     }
 
     const postId = target.dataset.deletePostId;
+
     if (!postId) {
       return;
     }
 
     const currentUser = getCurrentUser();
-    const posts = loadPosts();
-    const post = posts.find((item) => item.id === postId);
+    const post = cachedPosts.find((item) => item.id === postId);
 
     if (!currentUser || !post || post.author !== currentUser) {
       return;
     }
 
     const isConfirmed = window.confirm("この投稿を削除しますか？");
+
     if (!isConfirmed) {
       return;
     }
 
-    const nextPosts = posts.filter((item) => item.id !== postId);
-    savePosts(nextPosts);
-    renderPosts();
+    const result = await deletePost(postId, currentUser);
+
+    if (!result.ok) {
+      if (postMessage) {
+        postMessage.textContent = "投稿の削除に失敗しました。コンソールを確認してください。";
+      }
+      return;
+    }
+
+    await renderPosts();
 
     if (postMessage) {
       postMessage.textContent = "投稿を削除しました。";
@@ -556,6 +637,7 @@ if (friendForm) {
     event.preventDefault();
 
     const currentUser = getCurrentUser();
+
     if (!currentUser) {
       goToPage("login.html");
       return;
@@ -586,6 +668,7 @@ if (friendForm) {
     }
 
     const friends = getFriendsForUser(currentUser);
+
     if (friends.includes(friendName)) {
       if (friendMessage) {
         friendMessage.textContent = "そのユーザーはすでにフレンドです。";
@@ -595,9 +678,11 @@ if (friendForm) {
 
     setFriendsForUser(currentUser, [...friends, friendName]);
     friendForm.reset();
+
     if (friendMessage) {
       friendMessage.textContent = `${friendName} さんをフレンドに追加しました。`;
     }
+
     renderFriendList();
     renderPosts();
   });
@@ -606,21 +691,25 @@ if (friendForm) {
 if (friendList) {
   friendList.addEventListener("click", (event) => {
     const target = event.target;
+
     if (!(target instanceof HTMLButtonElement)) {
       return;
     }
 
     const friendName = target.dataset.friendName;
     const currentUser = getCurrentUser();
+
     if (!friendName || !currentUser) {
       return;
     }
 
     const nextFriends = getFriendsForUser(currentUser).filter((name) => name !== friendName);
     setFriendsForUser(currentUser, nextFriends);
+
     if (friendMessage) {
       friendMessage.textContent = `${friendName} さんをフレンド一覧から外しました。`;
     }
+
     renderFriendList();
     renderPosts();
   });
@@ -656,7 +745,7 @@ if (changeNameForm) {
     currentNameInput.value = currentUser || "";
   }
 
-  changeNameForm.addEventListener("submit", (event) => {
+  changeNameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const currentName = getCurrentUser();
@@ -699,7 +788,7 @@ if (changeNameForm) {
 
     user.name = newUserName;
     saveUsers(users);
-    updatePostsAuthorName(currentName, newUserName);
+    await updatePostsAuthorName(currentName, newUserName);
     renameFriendReferences(currentName, newUserName);
     setCurrentUser(newUserName);
 
