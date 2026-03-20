@@ -148,7 +148,7 @@ function getCurrentUserAvatar() {
 }
 
 async function refreshCurrentAuthUser() {
-  const { data, error } = await supabaseClient.auth.getUser();
+  const { data, error } = await supabaseClient.auth.getSession();
 
   if (error) {
     console.log(error);
@@ -156,7 +156,7 @@ async function refreshCurrentAuthUser() {
     return null;
   }
 
-  currentAuthUser = data.user || null;
+  currentAuthUser = data.session?.user || null;
   return currentAuthUser;
 }
 
