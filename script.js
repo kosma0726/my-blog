@@ -582,7 +582,10 @@ if (avatarUpdateInput) {
 if (blogForm) {
   blogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-
+    console.log("投稿ボタン押された");
+await refreshCurrentAuthUser();
+console.log(currentAuthUser);
+console.log(getCurrentUserName());
     await refreshCurrentAuthUser();
     const currentUserName = getCurrentUserName();
 
