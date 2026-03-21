@@ -395,6 +395,12 @@ async function renderPosts() {
   if (!postList) {
     return;
   }
+postList.innerHTML = "";
+
+const loadingState = document.createElement("div");
+loadingState.className = "empty-state";
+loadingState.textContent = "読み込み中...";
+postList.appendChild(loadingState);
 
   const posts = getFilteredPosts(await fetchPosts());
   postList.innerHTML = "";
