@@ -550,18 +550,19 @@ if (registerForm) {
     registerForm.reset();
 
     if (data.session?.user) {
-  currentAuthUser = data.session.user;
-  await syncCurrentUserProfile();
-  goToPage("index.html");
-  return;
+      currentAuthUser = data.session.user;
+      await syncCurrentUserProfile();
+      goToPage("index.html");
+      return;
+    }
+
+    if (authMessage) {
+      authMessage.textContent = "登録できました。メール確認後にログインしてください。";
+    }
+    goToPage("login.html");
+  });
 }
 
-if (authMessage) {
-  authMessage.textContent = "登録できました。メール確認後にログインしてください。";
-}
-goToPage("login.html");
-});
-}
 
 if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
@@ -591,12 +592,13 @@ if (loginForm) {
     }
 
     if (data.session?.user) {
-  currentAuthUser = data.session.user;
-  await syncCurrentUserProfile();
-  goToPage("index.html");
-}
+      currentAuthUser = data.session.user;
+      await syncCurrentUserProfile();
+      goToPage("index.html");
+    }
   });
 }
+
 
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
@@ -632,27 +634,26 @@ if (avatarUpdateInput) {
       },
     });
 
-  if (error) {
-  console.log(error);
-  if (postMessage) {
-    postMessage.textContent = "アイコン更新に失敗しました。";
-  }
-  return;
-}
+    if (error) {
+      console.log(error);
+      if (postMessage) {
+        postMessage.textContent = "アイコン更新に失敗しました。";
+      }
+      return;
+    }
 
-await refreshCurrentAuthUser();
-await syncCurrentUserProfile();
+    await refreshCurrentAuthUser();
+    await syncCurrentUserProfile();
 
-if (postMessage) {
-  postMessage.textContent = "アイコンを更新しました。";
-}
+    if (postMessage) {
+      postMessage.textContent = "アイコンを更新しました。";
+    }
 
-await renderPosts();
-avatarUpdateInput.value = "";
-
-
+    await renderPosts();
+    avatarUpdateInput.value = "";
   });
 }
+
 
 if (blogForm) {
   blogForm.addEventListener("submit", async (event) => {
