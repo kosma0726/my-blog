@@ -41,6 +41,7 @@ const accountMessage = document.getElementById("account-message");
 const currentNameInput = document.getElementById("current-name");
 const currentPage = window.location.pathname.split("/").pop() || "index.html";
 const passwordToggleButtons = document.querySelectorAll("[data-password-toggle]");
+const protectedPages = ["index.html", "change-name.html", "change-password.html"];
 
 let currentFilter = DEFAULT_FILTER;
 let cachedPosts = [];
@@ -90,6 +91,9 @@ function renameFriendReferences(oldName, newName) {
 
 function goToPage(page) {
   window.location.href = page;
+}
+function showPageIfReady() {
+  document.body.classList.remove("auth-guard");
 }
 
 function formatDate(dateText) {
@@ -477,7 +481,6 @@ function updateAuthUi() {
 }
 
 async function requireLoginForProtectedPages() {
-  const protectedPages = ["index.html", "change-name.html", "change-password.html"];
   const isLoggedIn = Boolean(currentAuthUser);
 
   if (protectedPages.includes(currentPage) && !isLoggedIn) {
@@ -983,7 +986,9 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   if (!canStay) {
     return;
   }
-
+  
+  showPageIfReady();
+  
   if (currentNameInput) {
     currentNameInput.value = getCurrentUserName() || "";
   }
