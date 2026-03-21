@@ -399,7 +399,7 @@ postList.innerHTML = "";
 
 const loadingState = document.createElement("div");
 loadingState.className = "empty-state";
-loadingState.textContent = "読み込み中...";
+loadingState.textContent = "ちょい待ち...";
 postList.appendChild(loadingState);
 
   const posts = getFilteredPosts(await fetchPosts());
