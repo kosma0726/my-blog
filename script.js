@@ -17,8 +17,7 @@ console.log(
   SUPABASE_ANON_KEY === "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA"
 );
 
-const testClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-console.log("testClient:", testClient);
+
 const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
 const blogForm = document.getElementById("blog-form");
