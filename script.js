@@ -636,7 +636,7 @@ if (avatarUpdateInput) {
       },
     });
 
-    if (error) {
+  if (error) {
   console.log(error);
   if (postMessage) {
     postMessage.textContent = "アイコン更新に失敗しました。";
@@ -653,6 +653,7 @@ if (postMessage) {
 
 await renderPosts();
 avatarUpdateInput.value = "";
+
 
   });
 }
