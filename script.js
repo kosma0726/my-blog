@@ -9,16 +9,19 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 );
+
 console.log("SUPABASE_URL:", SUPABASE_URL);
 console.log("SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY);
 console.log("URL一致?", SUPABASE_URL === "https://lmuhbktyjslllbecrjzj.supabase.co");
 console.log(
   "KEY一致?",
-  SUPABASE_ANON_KEY === "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA"
+  SUPABASE_ANON_KEY ===
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA"
 );
 
 const testClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 console.log("testClient:", testClient);
+
 const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
 const blogForm = document.getElementById("blog-form");
@@ -167,6 +170,50 @@ async function refreshCurrentAuthUser() {
 
   currentAuthUser = data.session?.user || null;
   return currentAuthUser;
+}
+
+async function syncCurrentUserProfile() {
+  if (!currentAuthUser) {
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.from("profiles").upsert([
+      {
+        id: currentAuthUser.id,
+        display_name: getCurrentUserName(),
+        avatar_url: getCurrentUserAvatar(),
+        email: currentAuthUser.email || "",
+      },
+    ]);
+
+    if (error) {
+      console.log(error);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+async function findExistingUserByName(displayName) {
+  try {
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("id, display_name")
+      .eq("display_name", displayName)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.log(error);
+      return null;
+    }
+
+    return data || null;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
 }
 
 function getFilteredPosts(posts) {
@@ -499,6 +546,7 @@ if (registerForm) {
 
     if (data.user) {
       await refreshCurrentAuthUser();
+      await syncCurrentUserProfile();
       goToPage("index.html");
     }
   });
@@ -555,7 +603,6 @@ if (logoutButton) {
   });
 }
 
-
 if (avatarUpdateInput) {
   avatarUpdateInput.addEventListener("change", async (event) => {
     const file = event.target.files && event.target.files[0];
@@ -582,6 +629,7 @@ if (avatarUpdateInput) {
     }
 
     await refreshCurrentAuthUser();
+    await syncCurrentUserProfile();
 
     if (postMessage) {
       postMessage.textContent = "アイコンを更新しました。";
@@ -703,7 +751,7 @@ if (postList) {
 }
 
 if (friendForm) {
-  friendForm.addEventListener("submit", (event) => {
+  friendForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const currentUserName = getCurrentUserName();
@@ -726,6 +774,14 @@ if (friendForm) {
     if (friendName === currentUserName) {
       if (friendMessage) {
         friendMessage.textContent = "自分自身は追加しなくて大丈夫です。";
+      }
+      return;
+    }
+
+    const existingUser = await findExistingUserByName(friendName);
+    if (!existingUser) {
+      if (friendMessage) {
+        friendMessage.textContent = "そのユーザー名は存在しません。";
       }
       return;
     }
@@ -851,6 +907,7 @@ if (changeNameForm) {
     await updatePostsAuthorName(currentName, newUserName);
     renameFriendReferences(currentName, newUserName);
     await refreshCurrentAuthUser();
+    await syncCurrentUserProfile();
 
     if (currentNameInput) {
       currentNameInput.value = newUserName;
@@ -913,6 +970,10 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   }
 
   updateAuthUi();
+
+  if (currentAuthUser) {
+    syncCurrentUserProfile();
+  }
 });
 
 (async () => {
@@ -928,5 +989,6 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   }
 
   updateAuthUi();
+  await syncCurrentUserProfile();
   await renderPosts();
 })();
