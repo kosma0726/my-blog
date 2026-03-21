@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>登録情報変更 | はじめてブログ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="page-auth auth-guard">
+    <main class="auth-page">
+      <section class="auth-page__card panel">
+        <nav class="top-nav top-nav--compact">
+          <a href="index.html">ホーム</a>
+          <a href="account-settings.html">登録情報変更</a>
+        </nav>
+        <p class="section-heading__eyebrow">ACCOUNT</p>
+        <h1 class="auth-page__title">登録情報変更</h1>
+        <p class="auth-page__text">
+          ユーザー名、アイコン、パスワードの変更はこちらからできます。
+        </p>
+
+        <div class="account-actions">
+          <a href="change-name.html" class="button button--ghost button--full">
+            ユーザー名変更
+          </a>
+          <label class="button button--ghost button--file button--full account-actions__file">
+            アイコン変更
+            <input type="file" id="avatar-update-input" accept="image/*" />
+          </label>
+          <a href="change-password.html" class="button button--ghost button--full">
+            パスワード変更
+          </a>
+        </div>
+
+        <p id="account-message" class="message" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
