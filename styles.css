@@ -41,6 +41,10 @@ body {
   background-attachment: fixed;
 }
 
+body.auth-guard {
+  visibility: hidden;
+}
+
 body::before {
   content: "";
   position: fixed;
