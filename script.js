@@ -564,7 +564,8 @@ if (authMessage) {
   authMessage.textContent = "登録できました。メール確認後にログインしてください。";
 }
 goToPage("login.html");
-
+});
+}
 
 if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
@@ -593,10 +594,11 @@ if (loginForm) {
       authMessage.textContent = "ログインできました。";
     }
 
-    if (data.user) {
-      await refreshCurrentAuthUser();
-      goToPage("index.html");
-    }
+    if (data.session?.user) {
+  currentAuthUser = data.session.user;
+  await syncCurrentUserProfile();
+  goToPage("index.html");
+}
   });
 }
 
