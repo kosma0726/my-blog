@@ -411,15 +411,6 @@ h3 {
   cursor: pointer;
 }
 
-.account-actions {
-  display: grid;
-  gap: 14px;
-  margin-top: 24px;
-}
-
-.account-actions__file {
-  justify-content: center;
-}
 
 .form {
   margin-top: 24px;
