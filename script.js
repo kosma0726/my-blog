@@ -549,10 +549,6 @@ if (registerForm) {
 
     registerForm.reset();
 
-    if (authMessage) {
-      authMessage.textContent = "登録できました。";
-    }
-
     if (data.session?.user) {
   currentAuthUser = data.session.user;
   await syncCurrentUserProfile();
