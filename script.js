@@ -9,19 +9,16 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 );
-
 console.log("SUPABASE_URL:", SUPABASE_URL);
 console.log("SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY);
 console.log("URL一致?", SUPABASE_URL === "https://lmuhbktyjslllbecrjzj.supabase.co");
 console.log(
   "KEY一致?",
-  SUPABASE_ANON_KEY ===
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA"
+  SUPABASE_ANON_KEY === "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA"
 );
 
 const testClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 console.log("testClient:", testClient);
-
 const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
 const blogForm = document.getElementById("blog-form");
@@ -41,7 +38,12 @@ const accountMessage = document.getElementById("account-message");
 const currentNameInput = document.getElementById("current-name");
 const currentPage = window.location.pathname.split("/").pop() || "index.html";
 const passwordToggleButtons = document.querySelectorAll("[data-password-toggle]");
-const protectedPages = ["index.html", "change-name.html", "change-password.html"];
+const protectedPages = [
+  "index.html",
+  "account-settings.html",
+  "change-name.html",
+  "change-password.html",
+];
 
 let currentFilter = DEFAULT_FILTER;
 let cachedPosts = [];
@@ -92,8 +94,19 @@ function renameFriendReferences(oldName, newName) {
 function goToPage(page) {
   window.location.href = page;
 }
+
 function showPageIfReady() {
   document.body.classList.remove("auth-guard");
+}
+
+function setAccountStatusMessage(message) {
+  if (postMessage) {
+    postMessage.textContent = message;
+  }
+
+  if (accountMessage) {
+    accountMessage.textContent = message;
+  }
 }
 
 function formatDate(dateText) {
@@ -395,12 +408,13 @@ async function renderPosts() {
   if (!postList) {
     return;
   }
-postList.innerHTML = "";
 
-const loadingState = document.createElement("div");
-loadingState.className = "empty-state";
-loadingState.textContent = "ちょい待ち...";
-postList.appendChild(loadingState);
+  postList.innerHTML = "";
+
+  const loadingState = document.createElement("div");
+  loadingState.className = "empty-state";
+  loadingState.textContent = "ちょい待ち...";
+  postList.appendChild(loadingState);
 
   const posts = getFilteredPosts(await fetchPosts());
   postList.innerHTML = "";
@@ -631,18 +645,14 @@ if (avatarUpdateInput) {
 
     if (error) {
       console.log(error);
-      if (postMessage) {
-        postMessage.textContent = "アイコン更新に失敗しました。";
-      }
+      setAccountStatusMessage("アイコン更新に失敗しました。");
       return;
     }
 
     await refreshCurrentAuthUser();
     await syncCurrentUserProfile();
 
-    if (postMessage) {
-      postMessage.textContent = "アイコンを更新しました。";
-    }
+    setAccountStatusMessage("アイコンを更新しました。");
 
     await renderPosts();
     avatarUpdateInput.value = "";
@@ -992,9 +1002,9 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   if (!canStay) {
     return;
   }
-  
+
   showPageIfReady();
-  
+
   if (currentNameInput) {
     currentNameInput.value = getCurrentUserName() || "";
   }
