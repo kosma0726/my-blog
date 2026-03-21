@@ -12,13 +12,12 @@
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="page-auth">
+  <body class="page-auth auth-guard">
     <main class="auth-page">
       <section class="auth-page__card panel">
         <nav class="top-nav top-nav--compact">
           <a href="index.html">ホーム</a>
-          <a href="change-name.html">ユーザー名変更</a>
-          <a href="change-password.html">パスワード変更</a>
+          <a href="account-settings.html">登録情報変更</a>
         </nav>
         <p class="section-heading__eyebrow">ACCOUNT</p>
         <h1 class="auth-page__title">ユーザー名変更</h1>
@@ -50,8 +49,8 @@
         <p id="account-message" class="message" aria-live="polite"></p>
       </section>
     </main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="script.js"></script>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
   </body>
 </html>
