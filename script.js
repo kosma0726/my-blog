@@ -38,12 +38,8 @@ const accountMessage = document.getElementById("account-message");
 const currentNameInput = document.getElementById("current-name");
 const currentPage = window.location.pathname.split("/").pop() || "index.html";
 const passwordToggleButtons = document.querySelectorAll("[data-password-toggle]");
-const protectedPages = [
-  "index.html",
-  "account-settings.html",
-  "change-name.html",
-  "change-password.html",
-];
+const protectedPages = ["index.html", "change-name.html", "change-password.html"];
+
 
 let currentFilter = DEFAULT_FILTER;
 let cachedPosts = [];
@@ -99,15 +95,6 @@ function showPageIfReady() {
   document.body.classList.remove("auth-guard");
 }
 
-function setAccountStatusMessage(message) {
-  if (postMessage) {
-    postMessage.textContent = message;
-  }
-
-  if (accountMessage) {
-    accountMessage.textContent = message;
-  }
-}
 
 function formatDate(dateText) {
   const date = new Date(dateText);
@@ -644,18 +631,23 @@ if (avatarUpdateInput) {
     });
 
     if (error) {
-      console.log(error);
-      setAccountStatusMessage("アイコン更新に失敗しました。");
-      return;
-    }
+  console.log(error);
+  if (postMessage) {
+    postMessage.textContent = "アイコン更新に失敗しました。";
+  }
+  return;
+}
 
-    await refreshCurrentAuthUser();
-    await syncCurrentUserProfile();
+await refreshCurrentAuthUser();
+await syncCurrentUserProfile();
 
-    setAccountStatusMessage("アイコンを更新しました。");
+if (postMessage) {
+  postMessage.textContent = "アイコンを更新しました。";
+}
 
-    await renderPosts();
-    avatarUpdateInput.value = "";
+await renderPosts();
+avatarUpdateInput.value = "";
+
   });
 }
 
