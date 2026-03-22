@@ -185,7 +185,7 @@ async function syncCurrentUserProfile() {
       {
         id: currentAuthUser.id,
         display_name: getCurrentUserName(),
-        avatar_url: getCurrentUserAvatar(),
+        avatar_url: "",
         email: currentAuthUser.email || "",
       },
     ]);
