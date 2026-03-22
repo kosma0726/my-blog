@@ -582,7 +582,6 @@ if (registerForm) {
 
     if (data.session?.user) {
   currentAuthUser = data.session.user;
-  await syncCurrentUserProfile();
   goToPage("index.html");
   return;
 }
@@ -624,7 +623,6 @@ if (loginForm) {
 
     if (data.session?.user) {
   currentAuthUser = data.session.user;
-  await syncCurrentUserProfile();
   goToPage("index.html");
 }
   });
@@ -1008,7 +1006,7 @@ if (changePasswordForm) {
   });
 }
 
-supabaseClient.auth.onAuthStateChange((_event, session) => {
+supabaseClient.auth.onAuthStateChange(async (_event, session) => {
   currentAuthUser = session?.user || null;
 
   if (currentNameInput) {
@@ -1017,8 +1015,14 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
 
   updateAuthUi();
 
+  if (!session?.user) {
+    return;
+  }
+
+  await refreshCurrentAuthUser();
+
   if (currentAuthUser) {
-    syncCurrentUserProfile();
+    await syncCurrentUserProfile();
   }
 });
 
@@ -1036,7 +1040,11 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
     currentNameInput.value = getCurrentUserName() || "";
   }
 
-  updateAuthUi();
-  await syncCurrentUserProfile();
+    updateAuthUi();
+
+  if (currentAuthUser) {
+    await syncCurrentUserProfile();
+  }
+
   await renderPosts();
 })();
