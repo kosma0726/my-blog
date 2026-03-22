@@ -185,7 +185,7 @@ async function syncCurrentUserProfile() {
       {
         id: currentAuthUser.id,
         display_name: getCurrentUserName(),
-        avatar_url: "",
+        avatar_url: getCurrentUserAvatar(),
         email: currentAuthUser.email || "",
       },
     ]);
@@ -681,7 +681,7 @@ if (blogForm) {
       const newPost = {
         id: crypto.randomUUID(),
         author: currentUserName,
-        avatar: "",
+        avatar: getCurrentUserAvatar(),
         title: formData.get("title")?.toString().trim() || "",
         summary: formData.get("summary")?.toString().trim() || "",
         content: formData.get("content")?.toString().trim() || "",
