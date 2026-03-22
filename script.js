@@ -544,14 +544,15 @@ if (registerForm) {
 
     if (data.session?.user) {
   currentAuthUser = data.session.user;
+  await syncCurrentUserProfile();
   goToPage("index.html");
   return;
 }
 
-    if (authMessage) {
-      authMessage.textContent = "登録できました。メール確認後にログインしてください。";
-    }
-    goToPage("login.html");
+if (authMessage) {
+  authMessage.textContent = "登録できました。メール確認後にログインしてください。";
+}
+goToPage("login.html");
   });
 }
 
@@ -585,6 +586,7 @@ if (loginForm) {
 
     if (data.session?.user) {
   currentAuthUser = data.session.user;
+  await syncCurrentUserProfile();
   goToPage("index.html");
 }
   });
