@@ -590,21 +590,13 @@ if (loginForm) {
   });
 }
 
+const SUPABASE_AUTH_STORAGE_KEY = "sb-lmuhbktyjslllbecrjzj-auth-token";
+
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     try {
-      const { data, error: sessionError } = await supabaseClient.auth.getSession();
-
-      if (sessionError) {
-        console.log(sessionError);
-      }
-
-      if (data.session) {
-        const { error } = await supabaseClient.auth.signOut({ scope: "local" });
-        if (error) {
-          console.log(error);
-        }
-      }
+      localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
+      sessionStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
     } catch (error) {
       console.log(error);
     } finally {
