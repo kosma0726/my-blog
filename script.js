@@ -274,7 +274,6 @@ async function fetchPosts() {
     return { ok: true, posts: cachedPosts };
   } catch (error) {
     console.log(error);
-    cachedPosts = [];
     return { ok: false, posts: [] };
   }
 }
@@ -293,6 +292,7 @@ async function insertPost(post) {
   }
 
   if (!data.session?.user) {
+    console.log(new Error("未ログインのため投稿できません。"));
     return { ok: false, reason: "not_authenticated" };
   }
 
@@ -427,8 +427,7 @@ async function renderPosts() {
   if (!result.ok) {
     const errorState = document.createElement("div");
     errorState.className = "empty-state";
-    errorState.textContent =
-      "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
+    errorState.textContent = "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
     postList.appendChild(errorState);
     return;
   }
@@ -522,10 +521,7 @@ async function requireLoginForProtectedPages() {
     return false;
   }
 
-  if (
-    (currentPage === "login.html" || currentPage === "register.html") &&
-    isLoggedIn
-  ) {
+  if ((currentPage === "login.html" || currentPage === "register.html") && isLoggedIn) {
     goToPage("index.html");
     return false;
   }
@@ -590,7 +586,6 @@ if (registerForm) {
     if (authMessage) {
       authMessage.textContent = "登録できました。メール確認後にログインしてください。";
     }
-
     goToPage("login.html");
   });
 }
