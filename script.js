@@ -179,24 +179,6 @@ async function syncCurrentUserProfile() {
   return;
 }
 
-  try {
-    const { error } = await supabaseClient.from("profiles").upsert([
-      {
-        id: currentAuthUser.id,
-        display_name: getCurrentUserName(),
-        avatar_url: getCurrentUserAvatar(),
-        email: currentAuthUser.email || "",
-      },
-    ]);
-
-    if (error) {
-      console.log(error);
-    }
-  } catch (error) {
-    console.log(error);
-  }
-}
-
 async function findExistingUserByName(displayName) {
   try {
     const { data, error } = await supabaseClient
