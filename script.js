@@ -236,8 +236,9 @@ async function fetchPosts() {
   try {
     const { data, error } = await supabaseClient
       .from("posts")
-      .select("*")
-      .order("date", { ascending: false });
+      .select("id, author, avatar, title, summary, content, date")
+      .order("date", { ascending: false })
+      .limit(20);
 
     if (error) {
       console.log(error);
