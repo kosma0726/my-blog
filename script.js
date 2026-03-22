@@ -176,9 +176,8 @@ async function refreshCurrentAuthUser() {
 }
 
 async function syncCurrentUserProfile() {
-  if (!currentAuthUser) {
-    return;
-  }
+  return;
+}
 
   try {
     const { error } = await supabaseClient.from("profiles").upsert([
@@ -550,11 +549,10 @@ if (registerForm) {
     registerForm.reset();
 
     if (data.session?.user) {
-      currentAuthUser = data.session.user;
-      await syncCurrentUserProfile();
-      goToPage("index.html");
-      return;
-    }
+  currentAuthUser = data.session.user;
+  goToPage("index.html");
+  return;
+}
 
     if (authMessage) {
       authMessage.textContent = "登録できました。メール確認後にログインしてください。";
@@ -592,10 +590,9 @@ if (loginForm) {
     }
 
     if (data.session?.user) {
-      currentAuthUser = data.session.user;
-      await syncCurrentUserProfile();
-      goToPage("index.html");
-    }
+  currentAuthUser = data.session.user;
+  goToPage("index.html");
+}
   });
 }
 
