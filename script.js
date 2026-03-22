@@ -590,14 +590,20 @@ if (loginForm) {
   });
 }
 
-
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     try {
-      const { error } = await supabaseClient.auth.signOut({ scope: "local" });
+      const { data, error: sessionError } = await supabaseClient.auth.getSession();
 
-      if (error) {
-        console.log(error);
+      if (sessionError) {
+        console.log(sessionError);
+      }
+
+      if (data.session) {
+        const { error } = await supabaseClient.auth.signOut({ scope: "local" });
+        if (error) {
+          console.log(error);
+        }
       }
     } catch (error) {
       console.log(error);
