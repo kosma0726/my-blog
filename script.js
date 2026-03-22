@@ -294,12 +294,19 @@ async function insertPost(post) {
     return { ok: false, reason: "not_authenticated" };
   }
 
-  try {
-    await supabaseClient.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    });
+  const { error: setSessionError } = await supabaseClient.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  });
 
+  if (setSessionError) {
+    console.log(setSessionError);
+    return { ok: false, reason: "set_session_failed" };
+  }
+
+  currentAuthUser = session.user;
+
+  try {
     const { error } = await supabaseClient.from("posts").insert([post]);
 
     if (error) {
