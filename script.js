@@ -385,8 +385,17 @@ async function renderPosts() {
   loadingState.textContent = "ちょい待ち...";
   postList.appendChild(loadingState);
 
-  const posts = getFilteredPosts(await fetchPosts());
+  const result = await fetchPosts();
+  const posts = getFilteredPosts(result.posts);
   postList.innerHTML = "";
+
+  if (!result.ok) {
+    const errorState = document.createElement("div");
+    errorState.className = "empty-state";
+    errorState.textContent = "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
+    postList.appendChild(errorState);
+    return;
+  }
 
   if (!posts.length) {
     const emptyState = document.createElement("div");
@@ -400,6 +409,7 @@ async function renderPosts() {
     postList.appendChild(createPostCard(post));
   });
 }
+
 
 function renderFilterTabs() {
   filterTabs.forEach((tab) => {
