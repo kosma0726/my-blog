@@ -230,7 +230,7 @@ async function fetchPosts() {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定です。"));
     cachedPosts = [];
-    return [];
+    return { ok: false, posts: [] };
   }
 
   try {
@@ -243,17 +243,18 @@ async function fetchPosts() {
     if (error) {
       console.log(error);
       cachedPosts = [];
-      return [];
+      return { ok: false, posts: [] };
     }
 
     cachedPosts = Array.isArray(data) ? data : [];
-    return cachedPosts;
+    return { ok: true, posts: cachedPosts };
   } catch (error) {
     console.log(error);
     cachedPosts = [];
-    return [];
+    return { ok: false, posts: [] };
   }
 }
+
 
 async function insertPost(post) {
   if (!isSupabaseReady()) {
