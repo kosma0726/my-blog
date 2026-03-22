@@ -54,6 +54,7 @@ function loadFriendMap() {
   try {
     return JSON.parse(saved);
   } catch (error) {
+    console.log(error);
     return {};
   }
 }
@@ -162,6 +163,10 @@ function getCurrentUserAvatar() {
   return getAvatarFromUser(currentAuthUser);
 }
 
+function getCurrentUserId() {
+  return currentAuthUser?.id || "";
+}
+
 async function refreshCurrentAuthUser() {
   const { data, error } = await supabaseClient.auth.getSession();
 
@@ -176,7 +181,26 @@ async function refreshCurrentAuthUser() {
 }
 
 async function syncCurrentUserProfile() {
-  return;
+  if (!currentAuthUser) {
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.from("profiles").upsert([
+      {
+        id: currentAuthUser.id,
+        display_name: getCurrentUserName(),
+        avatar_url: getCurrentUserAvatar(),
+        email: currentAuthUser.email || "",
+      },
+    ]);
+
+    if (error) {
+      console.log(error);
+    }
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 async function findExistingUserByName(displayName) {
@@ -236,7 +260,7 @@ async function fetchPosts() {
   try {
     const { data, error } = await supabaseClient
       .from("posts")
-      .select("id, author, avatar, title, summary, content, date")
+      .select("id, user_id, author, avatar, title, summary, content, date")
       .order("date", { ascending: false })
       .limit(20);
 
@@ -261,6 +285,17 @@ async function insertPost(post) {
     return { ok: false, reason: "not_ready" };
   }
 
+  const { data, error: sessionError } = await supabaseClient.auth.getSession();
+
+  if (sessionError) {
+    console.log(sessionError);
+    return { ok: false, reason: "session_error" };
+  }
+
+  if (!data.session?.user) {
+    return { ok: false, reason: "not_authenticated" };
+  }
+
   try {
     const { error } = await supabaseClient.from("posts").insert([post]);
 
@@ -276,7 +311,7 @@ async function insertPost(post) {
   }
 }
 
-async function deletePost(postId, currentUser) {
+async function deletePost(postId, currentUserId) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、削除できません。"));
     return { ok: false };
@@ -287,7 +322,7 @@ async function deletePost(postId, currentUser) {
       .from("posts")
       .delete()
       .eq("id", postId)
-      .eq("author", currentUser);
+      .eq("user_id", currentUserId);
 
     if (error) {
       console.log(error);
@@ -301,7 +336,7 @@ async function deletePost(postId, currentUser) {
   }
 }
 
-async function updatePostsAuthorName(oldName, newName) {
+async function updatePostsAuthorName(oldName, newName, currentUserId) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、投稿者名を更新できません。"));
     return;
@@ -311,6 +346,7 @@ async function updatePostsAuthorName(oldName, newName) {
     const { error } = await supabaseClient
       .from("posts")
       .update({ author: newName })
+      .eq("user_id", currentUserId)
       .eq("author", oldName);
 
     if (error) {
@@ -391,7 +427,8 @@ async function renderPosts() {
   if (!result.ok) {
     const errorState = document.createElement("div");
     errorState.className = "empty-state";
-    errorState.textContent = "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
+    errorState.textContent =
+      "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
     postList.appendChild(errorState);
     return;
   }
@@ -485,7 +522,10 @@ async function requireLoginForProtectedPages() {
     return false;
   }
 
-  if ((currentPage === "login.html" || currentPage === "register.html") && isLoggedIn) {
+  if (
+    (currentPage === "login.html" || currentPage === "register.html") &&
+    isLoggedIn
+  ) {
     goToPage("index.html");
     return false;
   }
@@ -542,6 +582,7 @@ if (registerForm) {
 
     if (data.session?.user) {
       currentAuthUser = data.session.user;
+      await syncCurrentUserProfile();
       goToPage("index.html");
       return;
     }
@@ -549,6 +590,7 @@ if (registerForm) {
     if (authMessage) {
       authMessage.textContent = "登録できました。メール確認後にログインしてください。";
     }
+
     goToPage("login.html");
   });
 }
@@ -582,6 +624,7 @@ if (loginForm) {
 
     if (data.session?.user) {
       currentAuthUser = data.session.user;
+      await syncCurrentUserProfile();
       goToPage("index.html");
     }
   });
@@ -627,6 +670,7 @@ if (avatarUpdateInput) {
     }
 
     await refreshCurrentAuthUser();
+    await syncCurrentUserProfile();
     await renderPosts();
     avatarUpdateInput.value = "";
 
@@ -642,8 +686,9 @@ if (blogForm) {
 
     await refreshCurrentAuthUser();
     const currentUserName = getCurrentUserName();
+    const currentUserId = getCurrentUserId();
 
-    if (!currentAuthUser || !currentUserName) {
+    if (!currentAuthUser || !currentUserName || !currentUserId) {
       if (postMessage) {
         postMessage.textContent = "記事を書くには、先にログインしてください。";
       }
@@ -653,6 +698,7 @@ if (blogForm) {
     const formData = new FormData(blogForm);
     const newPost = {
       id: crypto.randomUUID(),
+      user_id: currentUserId,
       author: currentUserName,
       avatar: getCurrentUserAvatar(),
       title: formData.get("title")?.toString().trim() || "",
@@ -672,7 +718,10 @@ if (blogForm) {
 
     if (!result.ok) {
       if (postMessage) {
-        postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
+        postMessage.textContent =
+          result.reason === "not_authenticated"
+            ? "ログイン状態が切れています。もう一度ログインしてください。"
+            : "投稿の保存に失敗しました。コンソールを確認してください。";
       }
       return;
     }
@@ -702,9 +751,10 @@ if (postList) {
 
     await refreshCurrentAuthUser();
     const currentUserName = getCurrentUserName();
+    const currentUserId = getCurrentUserId();
     const post = cachedPosts.find((item) => item.id === postId);
 
-    if (!currentUserName || !post || post.author !== currentUserName) {
+    if (!currentUserName || !currentUserId || !post || post.author !== currentUserName) {
       return;
     }
 
@@ -714,7 +764,7 @@ if (postList) {
       return;
     }
 
-    const result = await deletePost(postId, currentUserName);
+    const result = await deletePost(postId, currentUserId);
 
     if (!result.ok) {
       if (postMessage) {
@@ -849,10 +899,11 @@ if (changeNameForm) {
 
     await refreshCurrentAuthUser();
     const currentName = getCurrentUserName();
+    const currentUserId = getCurrentUserId();
     const formData = new FormData(changeNameForm);
     const newUserName = formData.get("newUserName")?.toString().trim() || "";
 
-    if (!currentAuthUser || !currentName) {
+    if (!currentAuthUser || !currentName || !currentUserId) {
       goToPage("login.html");
       return;
     }
@@ -886,9 +937,10 @@ if (changeNameForm) {
       return;
     }
 
-    await updatePostsAuthorName(currentName, newUserName);
+    await updatePostsAuthorName(currentName, newUserName, currentUserId);
     renameFriendReferences(currentName, newUserName);
     await refreshCurrentAuthUser();
+    await syncCurrentUserProfile();
     await renderPosts();
 
     if (currentNameInput) {
@@ -967,5 +1019,10 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   }
 
   updateAuthUi();
+
+  if (currentAuthUser) {
+    await syncCurrentUserProfile();
+  }
+
   await renderPosts();
 })();
