@@ -176,7 +176,26 @@ async function refreshCurrentAuthUser() {
 }
 
 async function syncCurrentUserProfile() {
-  return;
+  if (!currentAuthUser) {
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.from("profiles").upsert([
+      {
+        id: currentAuthUser.id,
+        display_name: getCurrentUserName(),
+        avatar_url: getCurrentUserAvatar(),
+        email: currentAuthUser.email || "",
+      },
+    ]);
+
+    if (error) {
+      console.log(error);
+    }
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 async function findExistingUserByName(displayName) {
@@ -269,11 +288,18 @@ async function insertPost(post) {
     return { ok: false, reason: "session_error" };
   }
 
-  if (!sessionData.session?.access_token) {
+  const session = sessionData.session;
+
+  if (!session?.access_token || !session?.refresh_token) {
     return { ok: false, reason: "not_authenticated" };
   }
 
   try {
+    await supabaseClient.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+
     const { error } = await supabaseClient.from("posts").insert([post]);
 
     if (error) {
@@ -554,6 +580,11 @@ if (registerForm) {
     registerForm.reset();
 
     if (data.session?.user) {
+  await supabaseClient.auth.setSession({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  });
+
   currentAuthUser = data.session.user;
   await syncCurrentUserProfile();
   goToPage("index.html");
@@ -596,6 +627,11 @@ if (loginForm) {
     }
 
     if (data.session?.user) {
+  await supabaseClient.auth.setSession({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  });
+
   currentAuthUser = data.session.user;
   await syncCurrentUserProfile();
   goToPage("index.html");
