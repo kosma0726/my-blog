@@ -681,7 +681,7 @@ if (blogForm) {
       const newPost = {
         id: crypto.randomUUID(),
         author: currentUserName,
-        avatar: getCurrentUserAvatar(),
+        avatar: "",
         title: formData.get("title")?.toString().trim() || "",
         summary: formData.get("summary")?.toString().trim() || "",
         content: formData.get("content")?.toString().trim() || "",
