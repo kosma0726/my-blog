@@ -628,7 +628,12 @@ if (loginForm) {
   });
 }
 
+const FRIENDS_STORAGE_KEY = "beginner-blog-friends";
+const DEFAULT_FILTER = "all";
 const SUPABASE_AUTH_STORAGE_KEY = "sb-lmuhbktyjslllbecrjzj-auth-token";
+
+const SUPABASE_URL = "https://lmuhbktyjslllbecrjzj.supabase.co";
+const SUPABASE_ANON_KEY = "...";
 
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
