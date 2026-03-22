@@ -1,23 +1,13 @@
 const FRIENDS_STORAGE_KEY = "beginner-blog-friends";
 const DEFAULT_FILTER = "all";
-const SUPABASE_AUTH_STORAGE_KEY = "sb-lmuhbktyjslllbecrjzj-auth-token";
-
 const SUPABASE_URL = "https://lmuhbktyjslllbecrjzj.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA";
+const SUPABASE_AUTH_STORAGE_KEY = "sb-lmuhbktyjslllbecrjzj-auth-token";
 
 const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
-);
-
-console.log("SUPABASE_URL:", SUPABASE_URL);
-console.log("SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY);
-console.log("URL一致?", SUPABASE_URL === "https://lmuhbktyjslllbecrjzj.supabase.co");
-console.log(
-  "KEY一致?",
-  SUPABASE_ANON_KEY ===
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA"
 );
 
 const registerForm = document.getElementById("register-form");
@@ -39,7 +29,12 @@ const accountMessage = document.getElementById("account-message");
 const currentNameInput = document.getElementById("current-name");
 const currentPage = window.location.pathname.split("/").pop() || "index.html";
 const passwordToggleButtons = document.querySelectorAll("[data-password-toggle]");
-const protectedPages = ["index.html", "change-name.html", "change-password.html"];
+const protectedPages = [
+  "index.html",
+  "account-settings.html",
+  "change-name.html",
+  "change-password.html",
+];
 
 let currentFilter = DEFAULT_FILTER;
 let cachedPosts = [];
@@ -93,6 +88,16 @@ function goToPage(page) {
 
 function showPageIfReady() {
   document.body.classList.remove("auth-guard");
+}
+
+function setAccountStatusMessage(message) {
+  if (postMessage) {
+    postMessage.textContent = message;
+  }
+
+  if (accountMessage) {
+    accountMessage.textContent = message;
+  }
 }
 
 function formatDate(dateText) {
@@ -176,7 +181,26 @@ async function refreshCurrentAuthUser() {
 }
 
 async function syncCurrentUserProfile() {
-  return;
+  if (!currentAuthUser) {
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.from("profiles").upsert([
+      {
+        id: currentAuthUser.id,
+        display_name: getCurrentUserName(),
+        avatar_url: getCurrentUserAvatar(),
+        email: currentAuthUser.email || "",
+      },
+    ]);
+
+    if (error) {
+      console.log(error);
+    }
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 async function findExistingUserByName(displayName) {
@@ -230,35 +254,34 @@ async function fetchPosts() {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定です。"));
     cachedPosts = [];
-    return { ok: false, posts: [] };
+    return [];
   }
 
   try {
     const { data, error } = await supabaseClient
       .from("posts")
-      .select("id, author, avatar, title, summary, content, date")
-      .order("date", { ascending: false })
-      .limit(20);
+      .select("*")
+      .order("date", { ascending: false });
 
     if (error) {
       console.log(error);
       cachedPosts = [];
-      return { ok: false, posts: [] };
+      return [];
     }
 
     cachedPosts = Array.isArray(data) ? data : [];
-    return { ok: true, posts: cachedPosts };
+    return cachedPosts;
   } catch (error) {
     console.log(error);
     cachedPosts = [];
-    return { ok: false, posts: [] };
+    return [];
   }
 }
 
 async function insertPost(post) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、投稿できません。"));
-    return { ok: false, reason: "not_ready" };
+    return { ok: false };
   }
 
   try {
@@ -266,13 +289,13 @@ async function insertPost(post) {
 
     if (error) {
       console.log(error);
-      return { ok: false, reason: "insert_failed" };
+      return { ok: false };
     }
 
     return { ok: true };
   } catch (error) {
     console.log(error);
-    return { ok: false, reason: "network_error" };
+    return { ok: false };
   }
 }
 
@@ -384,17 +407,8 @@ async function renderPosts() {
   loadingState.textContent = "ちょい待ち...";
   postList.appendChild(loadingState);
 
-  const result = await fetchPosts();
-  const posts = getFilteredPosts(result.posts);
+  const posts = getFilteredPosts(await fetchPosts());
   postList.innerHTML = "";
-
-  if (!result.ok) {
-    const errorState = document.createElement("div");
-    errorState.className = "empty-state";
-    errorState.textContent = "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
-    postList.appendChild(errorState);
-    return;
-  }
 
   if (!posts.length) {
     const emptyState = document.createElement("div");
@@ -485,7 +499,10 @@ async function requireLoginForProtectedPages() {
     return false;
   }
 
-  if ((currentPage === "login.html" || currentPage === "register.html") && isLoggedIn) {
+  if (
+    (currentPage === "login.html" || currentPage === "register.html") &&
+    isLoggedIn
+  ) {
     goToPage("index.html");
     return false;
   }
@@ -542,6 +559,7 @@ if (registerForm) {
 
     if (data.session?.user) {
       currentAuthUser = data.session.user;
+      await syncCurrentUserProfile();
       goToPage("index.html");
       return;
     }
@@ -549,6 +567,7 @@ if (registerForm) {
     if (authMessage) {
       authMessage.textContent = "登録できました。メール確認後にログインしてください。";
     }
+
     goToPage("login.html");
   });
 }
@@ -582,6 +601,7 @@ if (loginForm) {
 
     if (data.session?.user) {
       currentAuthUser = data.session.user;
+      await syncCurrentUserProfile();
       goToPage("index.html");
     }
   });
@@ -620,19 +640,17 @@ if (avatarUpdateInput) {
 
     if (error) {
       console.log(error);
-      if (postMessage) {
-        postMessage.textContent = "アイコン更新に失敗しました。";
-      }
+      setAccountStatusMessage("アイコン更新に失敗しました。");
       return;
     }
 
     await refreshCurrentAuthUser();
+    await syncCurrentUserProfile();
+
+    setAccountStatusMessage("アイコンを更新しました。");
+
     await renderPosts();
     avatarUpdateInput.value = "";
-
-    if (postMessage) {
-      postMessage.textContent = "アイコンを更新しました。";
-    }
   });
 }
 
@@ -640,48 +658,53 @@ if (blogForm) {
   blogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    await refreshCurrentAuthUser();
-    const currentUserName = getCurrentUserName();
+    try {
+      await refreshCurrentAuthUser();
 
-    if (!currentAuthUser || !currentUserName) {
-      if (postMessage) {
-        postMessage.textContent = "記事を書くには、先にログインしてください。";
+      const currentUserName = getCurrentUserName();
+
+      if (!currentAuthUser || !currentUserName) {
+        if (postMessage) {
+          postMessage.textContent = "記事を書くには、先にログインしてください。";
+        }
+        return;
       }
-      return;
-    }
 
-    const formData = new FormData(blogForm);
-    const newPost = {
-      id: crypto.randomUUID(),
-      author: currentUserName,
-      avatar: getCurrentUserAvatar(),
-      title: formData.get("title")?.toString().trim() || "",
-      summary: formData.get("summary")?.toString().trim() || "",
-      content: formData.get("content")?.toString().trim() || "",
-      date: new Date().toISOString(),
-    };
+      const formData = new FormData(blogForm);
+      const newPost = {
+        id: crypto.randomUUID(),
+        author: currentUserName,
+        avatar: getCurrentUserAvatar(),
+        title: formData.get("title")?.toString().trim() || "",
+        summary: formData.get("summary")?.toString().trim() || "",
+        content: formData.get("content")?.toString().trim() || "",
+        date: new Date().toISOString(),
+      };
 
-    if (!newPost.title || !newPost.summary || !newPost.content) {
-      if (postMessage) {
-        postMessage.textContent = "空欄があるので、全部入力してください。";
+      if (!newPost.title || !newPost.summary || !newPost.content) {
+        if (postMessage) {
+          postMessage.textContent = "空欄があるので、全部入力してください。";
+        }
+        return;
       }
-      return;
-    }
 
-    const result = await insertPost(newPost);
+      const result = await insertPost(newPost);
 
-    if (!result.ok) {
-      if (postMessage) {
-        postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
+      if (!result.ok) {
+        if (postMessage) {
+          postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
+        }
+        return;
       }
-      return;
-    }
 
-    await renderPosts();
-    blogForm.reset();
+      await renderPosts();
+      blogForm.reset();
 
-    if (postMessage) {
-      postMessage.textContent = `${currentUserName} さんの記事を投稿できました。`;
+      if (postMessage) {
+        postMessage.textContent = `${currentUserName} さんの記事を投稿できました。`;
+      }
+    } catch (error) {
+      console.log("submit内エラー", error);
     }
   });
 }
@@ -760,7 +783,6 @@ if (friendForm) {
     }
 
     const existingUser = await findExistingUserByName(friendName);
-
     if (!existingUser) {
       if (friendMessage) {
         friendMessage.textContent = "そのユーザー名は存在しません。";
@@ -804,7 +826,9 @@ if (friendList) {
       return;
     }
 
-    const nextFriends = getFriendsForUser(currentUserName).filter((name) => name !== friendName);
+    const nextFriends = getFriendsForUser(currentUserName).filter(
+      (name) => name !== friendName
+    );
     setFriendsForUser(currentUserName, nextFriends);
 
     if (friendMessage) {
@@ -889,7 +913,7 @@ if (changeNameForm) {
     await updatePostsAuthorName(currentName, newUserName);
     renameFriendReferences(currentName, newUserName);
     await refreshCurrentAuthUser();
-    await renderPosts();
+    await syncCurrentUserProfile();
 
     if (currentNameInput) {
       currentNameInput.value = newUserName;
@@ -898,6 +922,8 @@ if (changeNameForm) {
     if (accountMessage) {
       accountMessage.textContent = `ユーザー名を ${newUserName} に変更しました。`;
     }
+
+    await renderPosts();
   });
 }
 
@@ -950,6 +976,10 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   }
 
   updateAuthUi();
+
+  if (currentAuthUser) {
+    syncCurrentUserProfile();
+  }
 });
 
 (async () => {
@@ -967,5 +997,10 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   }
 
   updateAuthUi();
+
+  if (currentAuthUser) {
+    await syncCurrentUserProfile();
+  }
+
   await renderPosts();
 })();
