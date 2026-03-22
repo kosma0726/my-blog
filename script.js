@@ -259,7 +259,18 @@ async function fetchPosts() {
 async function insertPost(post) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、投稿できません。"));
-    return { ok: false };
+    return { ok: false, reason: "not_ready" };
+  }
+
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+
+  if (sessionError) {
+    console.log(sessionError);
+    return { ok: false, reason: "session_error" };
+  }
+
+  if (!sessionData.session?.access_token) {
+    return { ok: false, reason: "not_authenticated" };
   }
 
   try {
@@ -267,13 +278,13 @@ async function insertPost(post) {
 
     if (error) {
       console.log(error);
-      return { ok: false };
+      return { ok: false, reason: "insert_failed" };
     }
 
     return { ok: true };
   } catch (error) {
     console.log(error);
-    return { ok: false };
+    return { ok: false, reason: "network_error" };
   }
 }
 
@@ -690,14 +701,16 @@ if (blogForm) {
       }
 
       const result = await insertPost(newPost);
-      console.log("insert結果", result);
 
-      if (!result.ok) {
-        if (postMessage) {
-          postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
-        }
-        return;
-      }
+if (!result.ok) {
+  if (postMessage) {
+    postMessage.textContent =
+      result.reason === "not_authenticated"
+        ? "ログイン状態が切れています。もう一度ログインしてください。"
+        : "投稿の保存に失敗しました。コンソールを確認してください。";
+  }
+  return;
+}
 
       await renderPosts();
       blogForm.reset();
