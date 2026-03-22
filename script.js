@@ -163,7 +163,10 @@ function getCurrentUserAvatar() {
 }
 
 async function refreshCurrentAuthUser() {
-  const { data, error } = await supabaseClient.auth.getSession();
+  const {
+    data: { user },
+    error,
+  } = await supabaseClient.auth.getUser();
 
   if (error) {
     console.log(error);
@@ -171,7 +174,7 @@ async function refreshCurrentAuthUser() {
     return null;
   }
 
-  currentAuthUser = data.session?.user || null;
+  currentAuthUser = user || null;
   return currentAuthUser;
 }
 
@@ -281,30 +284,21 @@ async function insertPost(post) {
     return { ok: false, reason: "not_ready" };
   }
 
-  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabaseClient.auth.getUser();
 
-  if (sessionError) {
-    console.log(sessionError);
-    return { ok: false, reason: "session_error" };
-  }
-
-  const session = sessionData.session;
-
-  if (!session?.access_token || !session?.refresh_token) {
+  if (userError) {
+    console.log(userError);
     return { ok: false, reason: "not_authenticated" };
   }
 
-  const { error: setSessionError } = await supabaseClient.auth.setSession({
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-  });
-
-  if (setSessionError) {
-    console.log(setSessionError);
-    return { ok: false, reason: "set_session_failed" };
+  if (!user) {
+    return { ok: false, reason: "not_authenticated" };
   }
 
-  currentAuthUser = session.user;
+  currentAuthUser = user;
 
   try {
     const { error } = await supabaseClient.from("posts").insert([post]);
@@ -587,11 +581,6 @@ if (registerForm) {
     registerForm.reset();
 
     if (data.session?.user) {
-  await supabaseClient.auth.setSession({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  });
-
   currentAuthUser = data.session.user;
   await syncCurrentUserProfile();
   goToPage("index.html");
@@ -634,11 +623,6 @@ if (loginForm) {
     }
 
     if (data.session?.user) {
-  await supabaseClient.auth.setSession({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  });
-
   currentAuthUser = data.session.user;
   await syncCurrentUserProfile();
   goToPage("index.html");
