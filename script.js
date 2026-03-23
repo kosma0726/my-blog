@@ -176,7 +176,26 @@ async function refreshCurrentAuthUser() {
 }
 
 async function syncCurrentUserProfile() {
-  return;
+  if (!currentAuthUser) {
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.from("profiles").upsert([
+      {
+        id: currentAuthUser.id,
+        display_name: getCurrentUserName(),
+        avatar_url: getCurrentUserAvatar(),
+        email: currentAuthUser.email || "",
+      },
+    ]);
+
+    if (error) {
+      console.log(error);
+    }
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 async function findExistingUserByName(displayName) {
@@ -236,7 +255,7 @@ async function fetchPosts() {
   try {
     const { data, error } = await supabaseClient
       .from("posts")
-      .select("id, author, avatar, title, summary, content, date")
+      .select("id, user_id, author, avatar, title, summary, content, date")
       .order("date", { ascending: false })
       .limit(20);
 
@@ -261,6 +280,17 @@ async function insertPost(post) {
     return { ok: false, reason: "not_ready" };
   }
 
+  const { data, error: sessionError } = await supabaseClient.auth.getSession();
+
+  if (sessionError) {
+    console.log(sessionError);
+    return { ok: false, reason: "session_error" };
+  }
+
+  if (!data.session?.user) {
+    return { ok: false, reason: "not_authenticated" };
+  }
+
   try {
     const { error } = await supabaseClient.from("posts").insert([post]);
 
@@ -276,7 +306,7 @@ async function insertPost(post) {
   }
 }
 
-async function deletePost(postId, currentUser) {
+async function deletePost(postId, currentUserId) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、削除できません。"));
     return { ok: false };
@@ -287,7 +317,7 @@ async function deletePost(postId, currentUser) {
       .from("posts")
       .delete()
       .eq("id", postId)
-      .eq("author", currentUser);
+      .eq("user_id", currentUserId);
 
     if (error) {
       console.log(error);
@@ -590,8 +620,11 @@ if (loginForm) {
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     try {
-      localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
-      sessionStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
+      const { error } = await supabaseClient.auth.signOut();
+
+      if (error) {
+        console.log(error);
+      }
     } catch (error) {
       console.log(error);
     } finally {
@@ -600,6 +633,7 @@ if (logoutButton) {
     }
   });
 }
+
 
 if (avatarUpdateInput) {
   avatarUpdateInput.addEventListener("change", async (event) => {
@@ -652,14 +686,15 @@ if (blogForm) {
 
     const formData = new FormData(blogForm);
     const newPost = {
-      id: crypto.randomUUID(),
-      author: currentUserName,
-      avatar: getCurrentUserAvatar(),
-      title: formData.get("title")?.toString().trim() || "",
-      summary: formData.get("summary")?.toString().trim() || "",
-      content: formData.get("content")?.toString().trim() || "",
-      date: new Date().toISOString(),
-    };
+  id: crypto.randomUUID(),
+  user_id: currentAuthUser.id,
+  author: currentUserName,
+  avatar: getCurrentUserAvatar(),
+  title: formData.get("title")?.toString().trim() || "",
+  summary: formData.get("summary")?.toString().trim() || "",
+  content: formData.get("content")?.toString().trim() || "",
+  date: new Date().toISOString(),
+};
 
     if (!newPost.title || !newPost.summary || !newPost.content) {
       if (postMessage) {
@@ -671,11 +706,14 @@ if (blogForm) {
     const result = await insertPost(newPost);
 
     if (!result.ok) {
-      if (postMessage) {
-        postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
-      }
-      return;
-    }
+  if (postMessage) {
+    postMessage.textContent =
+      result.reason === "not_authenticated"
+        ? "ログイン状態が切れています。もう一度ログインしてください。"
+        : "投稿の保存に失敗しました。コンソールを確認してください。";
+  }
+  return;
+}
 
     await renderPosts();
     blogForm.reset();
@@ -701,20 +739,20 @@ if (postList) {
     }
 
     await refreshCurrentAuthUser();
-    const currentUserName = getCurrentUserName();
-    const post = cachedPosts.find((item) => item.id === postId);
+const currentUserName = getCurrentUserName();
+const currentUserId = currentAuthUser?.id || "";
+const post = cachedPosts.find((item) => item.id === postId);
 
-    if (!currentUserName || !post || post.author !== currentUserName) {
-      return;
-    }
-
+if (!currentUserName || !currentUserId || !post || post.author !== currentUserName) {
+  return;
+}
     const isConfirmed = window.confirm("この投稿を削除しますか？");
 
     if (!isConfirmed) {
       return;
     }
 
-    const result = await deletePost(postId, currentUserName);
+    const result = await deletePost(postId, currentUserId);
 
     if (!result.ok) {
       if (postMessage) {
