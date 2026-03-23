@@ -8,7 +8,15 @@ const SUPABASE_ANON_KEY =
 
 const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
-  SUPABASE_ANON_KEY
+  SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage,
+    },
+  }
 );
 
 console.log("SUPABASE_URL:", SUPABASE_URL);
@@ -292,11 +300,19 @@ async function insertPost(post) {
   }
 
   try {
-    const { error } = await supabaseClient.from("posts").insert([post]);
+    const { data: insertedRow, error } = await supabaseClient
+      .from("posts")
+      .insert([post])
+      .select("id, user_id")
+      .single();
 
     if (error) {
       console.log(error);
       return { ok: false, reason: "insert_failed" };
+    }
+
+    if (!insertedRow?.id) {
+      return { ok: false, reason: "insert_not_confirmed" };
     }
 
     return { ok: true };
@@ -309,29 +325,46 @@ async function insertPost(post) {
 async function deletePost(postId, currentUserId) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、削除できません。"));
-    return { ok: false };
+    return { ok: false, reason: "not_ready" };
+  }
+
+  const { data, error: sessionError } = await supabaseClient.auth.getSession();
+
+  if (sessionError) {
+    console.log(sessionError);
+    return { ok: false, reason: "session_error" };
+  }
+
+  if (!data.session?.user?.id) {
+    return { ok: false, reason: "not_authenticated" };
   }
 
   try {
-    const { error } = await supabaseClient
+    const { data: deletedRows, error } = await supabaseClient
       .from("posts")
       .delete()
       .eq("id", postId)
-      .eq("user_id", currentUserId);
+      .eq("user_id", currentUserId)
+      .select("id");
 
     if (error) {
       console.log(error);
-      return { ok: false };
+      return { ok: false, reason: "delete_failed" };
+    }
+
+    if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
+      return { ok: false, reason: "not_deleted" };
     }
 
     return { ok: true };
   } catch (error) {
     console.log(error);
-    return { ok: false };
+    return { ok: false, reason: "network_error" };
   }
 }
 
-async function updatePostsAuthorName(oldName, newName) {
+
+async function updatePostsAuthorName(oldName, newName, currentUserId) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、投稿者名を更新できません。"));
     return;
@@ -341,6 +374,7 @@ async function updatePostsAuthorName(oldName, newName) {
     const { error } = await supabaseClient
       .from("posts")
       .update({ author: newName })
+      .eq("user_id", currentUserId)
       .eq("author", oldName);
 
     if (error) {
@@ -677,17 +711,18 @@ if (blogForm) {
     await refreshCurrentAuthUser();
     const currentUserName = getCurrentUserName();
 
-    if (!currentAuthUser || !currentUserName) {
+    if (!currentAuthUser || !currentUserName || !currentUserId) {
       if (postMessage) {
         postMessage.textContent = "記事を書くには、先にログインしてください。";
       }
       return;
     }
 
-    const formData = new FormData(blogForm);
-    const newPost = {
+    const currentUserId = currentAuthUser?.id || "";
+
+const newPost = {
   id: crypto.randomUUID(),
-  user_id: currentAuthUser.id,
+  user_id: currentUserId,
   author: currentUserName,
   avatar: getCurrentUserAvatar(),
   title: formData.get("title")?.toString().trim() || "",
@@ -710,7 +745,9 @@ if (blogForm) {
     postMessage.textContent =
       result.reason === "not_authenticated"
         ? "ログイン状態が切れています。もう一度ログインしてください。"
-        : "投稿の保存に失敗しました。コンソールを確認してください。";
+        : result.reason === "insert_not_confirmed"
+          ? "投稿処理は終わりましたが、保存確認に失敗しました。"
+          : "投稿の保存に失敗しました。コンソールを確認してください。";
   }
   return;
 }
@@ -755,11 +792,14 @@ if (!currentUserName || !currentUserId || !post || post.author !== currentUserNa
     const result = await deletePost(postId, currentUserId);
 
     if (!result.ok) {
-      if (postMessage) {
-        postMessage.textContent = "投稿の削除に失敗しました。コンソールを確認してください。";
-      }
-      return;
-    }
+  if (postMessage) {
+    postMessage.textContent =
+      result.reason === "not_deleted"
+        ? "削除リクエストは送れましたが、対象の投稿は消えませんでした。"
+        : "投稿の削除に失敗しました。コンソールを確認してください。";
+  }
+  return;
+}
 
     await renderPosts();
 
@@ -924,7 +964,7 @@ if (changeNameForm) {
       return;
     }
 
-    await updatePostsAuthorName(currentName, newUserName);
+    await updatePostsAuthorName(currentName, newUserName, currentAuthUser.id);
     renameFriendReferences(currentName, newUserName);
     await refreshCurrentAuthUser();
     await renderPosts();
