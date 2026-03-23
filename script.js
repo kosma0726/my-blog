@@ -8,15 +8,7 @@ const SUPABASE_ANON_KEY =
 
 const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
-  SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storage: window.localStorage,
-    },
-  }
+  SUPABASE_ANON_KEY
 );
 
 console.log("SUPABASE_URL:", SUPABASE_URL);
@@ -27,7 +19,6 @@ console.log(
   SUPABASE_ANON_KEY ===
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtdWhia3R5anNsbGxiZWNyanpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE0NTMsImV4cCI6MjA4OTQ5NzQ1M30.nEs7C4FxSBouvS58-qEyrvQBkLD4I3aBtC8GBX-lyFA"
 );
-console.log("AUTH_STORAGE_KEY:", SUPABASE_AUTH_STORAGE_KEY);
 
 const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
@@ -54,42 +45,6 @@ let currentFilter = DEFAULT_FILTER;
 let cachedPosts = [];
 let currentAuthUser = null;
 
-function logAuthSnapshot(context, session = null) {
-  const resolvedSession = session || null;
-  console.log(`[${context}] auth snapshot`, {
-    hasSession: Boolean(resolvedSession),
-    userId: resolvedSession?.user?.id || currentAuthUser?.id || null,
-    currentAuthUserId: currentAuthUser?.id || null,
-  });
-}
-
-async function getActiveSession(context) {
-  const { data, error } = await supabaseClient.auth.getSession();
-
-  if (error) {
-    console.error(`[${context}] getSession failed`, error);
-    currentAuthUser = null;
-    return null;
-  }
-
-  currentAuthUser = data.session?.user || null;
-  logAuthSnapshot(context, data.session || null);
-  return data.session || null;
-}
-
-async function requireAuthenticatedUser(context) {
-  const session = await getActiveSession(context);
-
-  if (!session?.user?.id) {
-    console.error(`[${context}] authenticated user not found`);
-    currentAuthUser = null;
-    return null;
-  }
-
-  currentAuthUser = session.user;
-  return session.user;
-}
-
 function loadFriendMap() {
   const saved = localStorage.getItem(FRIENDS_STORAGE_KEY);
   if (!saved) {
@@ -99,7 +54,6 @@ function loadFriendMap() {
   try {
     return JSON.parse(saved);
   } catch (error) {
-    console.error("[loadFriendMap] parse failed", error);
     return {};
   }
 }
@@ -208,48 +162,24 @@ function getCurrentUserAvatar() {
   return getAvatarFromUser(currentAuthUser);
 }
 
-function getCurrentUserId() {
-  return currentAuthUser?.id || "";
-}
-
 async function refreshCurrentAuthUser() {
-  const session = await getActiveSession("refreshCurrentAuthUser");
-  currentAuthUser = session?.user || null;
+  const { data, error } = await supabaseClient.auth.getSession();
+
+  if (error) {
+    console.log(error);
+    currentAuthUser = null;
+    return null;
+  }
+
+  currentAuthUser = data.session?.user || null;
   return currentAuthUser;
 }
 
 async function syncCurrentUserProfile() {
-  const user = await requireAuthenticatedUser("syncCurrentUserProfile");
-
-  if (!user) {
-    return { ok: false };
-  }
-
-  try {
-    const { error } = await supabaseClient.from("profiles").upsert([
-      {
-        id: user.id,
-        display_name: getDisplayNameFromUser(user),
-        avatar_url: getAvatarFromUser(user),
-        email: user.email || "",
-      },
-    ]);
-
-    if (error) {
-      console.error("[syncCurrentUserProfile] upsert failed", error);
-      return { ok: false };
-    }
-
-    return { ok: true };
-  } catch (error) {
-    console.error("[syncCurrentUserProfile] request failed", error);
-    return { ok: false };
-  }
+  return;
 }
 
 async function findExistingUserByName(displayName) {
-  await getActiveSession("findExistingUserByName");
-
   try {
     const { data, error } = await supabaseClient
       .from("profiles")
@@ -259,13 +189,13 @@ async function findExistingUserByName(displayName) {
       .maybeSingle();
 
     if (error) {
-      console.error("[findExistingUserByName] select failed", error);
+      console.log(error);
       return null;
     }
 
     return data || null;
   } catch (error) {
-    console.error("[findExistingUserByName] request failed", error);
+    console.log(error);
     return null;
   }
 }
@@ -298,22 +228,20 @@ function isSupabaseReady() {
 
 async function fetchPosts() {
   if (!isSupabaseReady()) {
-    console.error("[fetchPosts] Supabase client is not ready");
+    console.log(new Error("Supabaseの接続情報が未設定です。"));
     cachedPosts = [];
     return { ok: false, posts: [] };
   }
 
-  await getActiveSession("fetchPosts");
-
   try {
     const { data, error } = await supabaseClient
       .from("posts")
-      .select("id, user_id, author, avatar, title, summary, content, date")
+      .select("id, author, avatar, title, summary, content, date")
       .order("date", { ascending: false })
       .limit(20);
 
     if (error) {
-      console.error("[fetchPosts] select failed", error);
+      console.log(error);
       cachedPosts = [];
       return { ok: false, posts: [] };
     }
@@ -321,7 +249,7 @@ async function fetchPosts() {
     cachedPosts = Array.isArray(data) ? data : [];
     return { ok: true, posts: cachedPosts };
   } catch (error) {
-    console.error("[fetchPosts] request failed", error);
+    console.log(error);
     cachedPosts = [];
     return { ok: false, posts: [] };
   }
@@ -329,98 +257,53 @@ async function fetchPosts() {
 
 async function insertPost(post) {
   if (!isSupabaseReady()) {
-    console.error("[insertPost] Supabase client is not ready");
+    console.log(new Error("Supabaseの接続情報が未設定のため、投稿できません。"));
     return { ok: false, reason: "not_ready" };
   }
 
-  const user = await requireAuthenticatedUser("insertPost");
-
-  if (!user?.id) {
-    return { ok: false, reason: "not_authenticated" };
-  }
-
   try {
-    const { data, error } = await supabaseClient
-      .from("posts")
-      .insert([post])
-      .select("id, user_id")
-      .single();
+    const { error } = await supabaseClient.from("posts").insert([post]);
 
     if (error) {
-      console.error("[insertPost] insert failed", error);
+      console.log(error);
       return { ok: false, reason: "insert_failed" };
     }
 
-    if (!data?.id) {
-      console.error("[insertPost] inserted row not returned", data);
-      return { ok: false, reason: "insert_not_confirmed" };
-    }
-
     return { ok: true };
   } catch (error) {
-    console.error("[insertPost] request failed", error);
+    console.log(error);
     return { ok: false, reason: "network_error" };
   }
 }
 
-async function deletePost(postId, currentUserId) {
+async function deletePost(postId, currentUser) {
   if (!isSupabaseReady()) {
-    console.error("[deletePost] Supabase client is not ready");
-    return { ok: false, reason: "not_ready" };
-  }
-
-  const user = await requireAuthenticatedUser("deletePost");
-
-  if (!user?.id || user.id !== currentUserId) {
-    console.error("[deletePost] authenticated user mismatch", {
-      currentUserId,
-      sessionUserId: user?.id || null,
-    });
-    return { ok: false, reason: "not_authenticated" };
+    console.log(new Error("Supabaseの接続情報が未設定のため、削除できません。"));
+    return { ok: false };
   }
 
   try {
-    const { data, error } = await supabaseClient
+    const { error } = await supabaseClient
       .from("posts")
       .delete()
       .eq("id", postId)
-      .eq("user_id", currentUserId)
-      .select("id");
+      .eq("author", currentUser);
 
     if (error) {
-      console.error("[deletePost] delete failed", error);
-      return { ok: false, reason: "delete_failed" };
-    }
-
-    if (!Array.isArray(data) || data.length === 0) {
-      console.error("[deletePost] row was not deleted", {
-        postId,
-        currentUserId,
-        data,
-      });
-      return { ok: false, reason: "not_deleted" };
+      console.log(error);
+      return { ok: false };
     }
 
     return { ok: true };
   } catch (error) {
-    console.error("[deletePost] request failed", error);
-    return { ok: false, reason: "network_error" };
+    console.log(error);
+    return { ok: false };
   }
 }
 
-async function updatePostsAuthorName(oldName, newName, currentUserId) {
+async function updatePostsAuthorName(oldName, newName) {
   if (!isSupabaseReady()) {
-    console.error("[updatePostsAuthorName] Supabase client is not ready");
-    return;
-  }
-
-  const user = await requireAuthenticatedUser("updatePostsAuthorName");
-
-  if (!user?.id || user.id !== currentUserId) {
-    console.error("[updatePostsAuthorName] authenticated user mismatch", {
-      currentUserId,
-      sessionUserId: user?.id || null,
-    });
+    console.log(new Error("Supabaseの接続情報が未設定のため、投稿者名を更新できません。"));
     return;
   }
 
@@ -428,14 +311,13 @@ async function updatePostsAuthorName(oldName, newName, currentUserId) {
     const { error } = await supabaseClient
       .from("posts")
       .update({ author: newName })
-      .eq("user_id", currentUserId)
       .eq("author", oldName);
 
     if (error) {
-      console.error("[updatePostsAuthorName] update failed", error);
+      console.log(error);
     }
   } catch (error) {
-    console.error("[updatePostsAuthorName] request failed", error);
+    console.log(error);
   }
 }
 
@@ -509,8 +391,7 @@ async function renderPosts() {
   if (!result.ok) {
     const errorState = document.createElement("div");
     errorState.className = "empty-state";
-    errorState.textContent =
-      "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
+    errorState.textContent = "投稿の読み込みに失敗しました。時間をおいて再読み込みしてください。";
     postList.appendChild(errorState);
     return;
   }
@@ -604,10 +485,7 @@ async function requireLoginForProtectedPages() {
     return false;
   }
 
-  if (
-    (currentPage === "login.html" || currentPage === "register.html") &&
-    isLoggedIn
-  ) {
+  if ((currentPage === "login.html" || currentPage === "register.html") && isLoggedIn) {
     goToPage("index.html");
     return false;
   }
@@ -653,7 +531,7 @@ if (registerForm) {
     });
 
     if (error) {
-      console.error("[register] signUp failed", error);
+      console.log(error);
       if (authMessage) {
         authMessage.textContent = "登録に失敗しました。";
       }
@@ -671,7 +549,6 @@ if (registerForm) {
     if (authMessage) {
       authMessage.textContent = "登録できました。メール確認後にログインしてください。";
     }
-
     goToPage("login.html");
   });
 }
@@ -690,7 +567,7 @@ if (loginForm) {
     });
 
     if (error) {
-      console.error("[login] signIn failed", error);
+      console.log(error);
       if (authMessage) {
         authMessage.textContent = "メールアドレスかパスワードが違います。";
       }
@@ -713,13 +590,10 @@ if (loginForm) {
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     try {
-      const { error } = await supabaseClient.auth.signOut();
-
-      if (error) {
-        console.error("[logout] signOut failed", error);
-      }
+      localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
+      sessionStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
     } catch (error) {
-      console.error("[logout] request failed", error);
+      console.log(error);
     } finally {
       currentAuthUser = null;
       goToPage("login.html");
@@ -745,7 +619,7 @@ if (avatarUpdateInput) {
     });
 
     if (error) {
-      console.error("[avatarUpdate] updateUser failed", error);
+      console.log(error);
       if (postMessage) {
         postMessage.textContent = "アイコン更新に失敗しました。";
       }
@@ -753,14 +627,12 @@ if (avatarUpdateInput) {
     }
 
     await refreshCurrentAuthUser();
-    await syncCurrentUserProfile();
+    await renderPosts();
+    avatarUpdateInput.value = "";
 
     if (postMessage) {
       postMessage.textContent = "アイコンを更新しました。";
     }
-
-    await renderPosts();
-    avatarUpdateInput.value = "";
   });
 }
 
@@ -768,10 +640,10 @@ if (blogForm) {
   blogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const user = await requireAuthenticatedUser("blogForm.submit");
+    await refreshCurrentAuthUser();
     const currentUserName = getCurrentUserName();
 
-    if (!user?.id || !currentUserName) {
+    if (!currentAuthUser || !currentUserName) {
       if (postMessage) {
         postMessage.textContent = "記事を書くには、先にログインしてください。";
       }
@@ -781,7 +653,6 @@ if (blogForm) {
     const formData = new FormData(blogForm);
     const newPost = {
       id: crypto.randomUUID(),
-      user_id: user.id,
       author: currentUserName,
       avatar: getCurrentUserAvatar(),
       title: formData.get("title")?.toString().trim() || "",
@@ -801,10 +672,7 @@ if (blogForm) {
 
     if (!result.ok) {
       if (postMessage) {
-        postMessage.textContent =
-          result.reason === "not_authenticated"
-            ? "ログイン状態が切れています。もう一度ログインしてください。"
-            : "投稿の保存に失敗しました。コンソールを確認してください。";
+        postMessage.textContent = "投稿の保存に失敗しました。コンソールを確認してください。";
       }
       return;
     }
@@ -832,11 +700,11 @@ if (postList) {
       return;
     }
 
-    const user = await requireAuthenticatedUser("postList.delete");
+    await refreshCurrentAuthUser();
     const currentUserName = getCurrentUserName();
     const post = cachedPosts.find((item) => item.id === postId);
 
-    if (!user?.id || !currentUserName || !post || post.author !== currentUserName) {
+    if (!currentUserName || !post || post.author !== currentUserName) {
       return;
     }
 
@@ -846,7 +714,7 @@ if (postList) {
       return;
     }
 
-    const result = await deletePost(postId, user.id);
+    const result = await deletePost(postId, currentUserName);
 
     if (!result.ok) {
       if (postMessage) {
@@ -979,12 +847,12 @@ if (changeNameForm) {
   changeNameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const user = await requireAuthenticatedUser("changeNameForm.submit");
+    await refreshCurrentAuthUser();
     const currentName = getCurrentUserName();
     const formData = new FormData(changeNameForm);
     const newUserName = formData.get("newUserName")?.toString().trim() || "";
 
-    if (!user?.id || !currentName) {
+    if (!currentAuthUser || !currentName) {
       goToPage("login.html");
       return;
     }
@@ -1011,17 +879,16 @@ if (changeNameForm) {
     });
 
     if (error) {
-      console.error("[changeName] updateUser failed", error);
+      console.log(error);
       if (accountMessage) {
         accountMessage.textContent = "ユーザー名の変更に失敗しました。";
       }
       return;
     }
 
-    await updatePostsAuthorName(currentName, newUserName, user.id);
+    await updatePostsAuthorName(currentName, newUserName);
     renameFriendReferences(currentName, newUserName);
     await refreshCurrentAuthUser();
-    await syncCurrentUserProfile();
     await renderPosts();
 
     if (currentNameInput) {
@@ -1038,9 +905,9 @@ if (changePasswordForm) {
   changePasswordForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const user = await requireAuthenticatedUser("changePasswordForm.submit");
+    await refreshCurrentAuthUser();
 
-    if (!user?.id) {
+    if (!currentAuthUser) {
       goToPage("login.html");
       return;
     }
@@ -1060,7 +927,7 @@ if (changePasswordForm) {
     });
 
     if (error) {
-      console.error("[changePassword] updateUser failed", error);
+      console.log(error);
       if (accountMessage) {
         accountMessage.textContent = "パスワード変更に失敗しました。";
       }
@@ -1075,19 +942,14 @@ if (changePasswordForm) {
   });
 }
 
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
+supabaseClient.auth.onAuthStateChange((_event, session) => {
   currentAuthUser = session?.user || null;
-  logAuthSnapshot(`onAuthStateChange:${event}`, session || null);
 
   if (currentNameInput) {
     currentNameInput.value = getCurrentUserName() || "";
   }
 
   updateAuthUi();
-
-  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-    await syncCurrentUserProfile();
-  }
 });
 
 (async () => {
@@ -1105,10 +967,5 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
   }
 
   updateAuthUi();
-
-  if (currentAuthUser) {
-    await syncCurrentUserProfile();
-  }
-
   await renderPosts();
 })();
