@@ -330,41 +330,47 @@ async function insertPost(post) {
 async function deletePost(postId, currentUserId) {
   if (!isSupabaseReady()) {
     console.log(new Error("Supabaseの接続情報が未設定のため、削除できません。"));
-    return { ok: false, reason: "not_ready" };
+    return { ok: false };
   }
 
-  const { data, error: sessionError } = await supabaseClient.auth.getSession();
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
 
-  if (sessionError) {
-    console.log(sessionError);
-    return { ok: false, reason: "session_error" };
-  }
-
-  if (!data.session?.user?.id) {
-    return { ok: false, reason: "not_authenticated" };
-  }
+  console.log("deletePost session確認", {
+    sessionError,
+    sessionUserId: sessionData?.session?.user?.id || null,
+    currentUserId,
+    postId,
+  });
 
   try {
-    const { data: deletedRows, error } = await supabaseClient
+    const { data, error } = await supabaseClient
       .from("posts")
       .delete()
       .eq("id", postId)
       .eq("user_id", currentUserId)
       .select("id");
 
+    console.log("deletePost 実行結果", {
+      postId,
+      currentUserId,
+      deletedRows: data,
+      error,
+    });
+
     if (error) {
       console.log(error);
-      return { ok: false, reason: "delete_failed" };
+      return { ok: false };
     }
 
-    if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
-      return { ok: false, reason: "not_deleted" };
+    if (!Array.isArray(data) || data.length === 0) {
+      console.log("削除対象が0件でした");
+      return { ok: false };
     }
 
     return { ok: true };
   } catch (error) {
     console.log(error);
-    return { ok: false, reason: "network_error" };
+    return { ok: false };
   }
 }
 
@@ -785,7 +791,17 @@ const currentUserName = getCurrentUserName();
 const currentUserId = currentAuthUser?.id || "";
 const post = cachedPosts.find((item) => item.id === postId);
 
+console.log("削除前チェック", {
+  postId,
+  postAuthor: post?.author,
+  postUserId: post?.user_id,
+  currentUserName,
+  currentUserId,
+  currentAuthUser,
+});
+
 if (!currentUserName || !currentUserId || !post || post.author !== currentUserName) {
+  console.log("削除停止: 事前条件で止まりました");
   return;
 }
     const isConfirmed = window.confirm("この投稿を削除しますか？");
