@@ -664,7 +664,6 @@ if (registerForm) {
 
     if (data.session?.user) {
       currentAuthUser = data.session.user;
-      await syncCurrentUserProfile();
       goToPage("index.html");
       return;
     }
@@ -706,7 +705,6 @@ if (loginForm) {
 
     if (data.session?.user) {
       currentAuthUser = data.session.user;
-      await syncCurrentUserProfile();
       goToPage("index.html");
     }
   });
