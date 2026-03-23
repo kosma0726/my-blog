@@ -628,8 +628,10 @@ if (loginForm) {
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     try {
-      localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
-      sessionStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) {
+        console.log(error);
+      }
     } catch (error) {
       console.log(error);
     } finally {
